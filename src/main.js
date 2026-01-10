@@ -174,13 +174,46 @@ function drawFaceBase(ctx, label, density) {
   ctx.strokeStyle = "rgba(255,255,255,0.32)";
   ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, faceCanvasSize - 2, faceCanvasSize - 2);
-
-  ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.font = "20px Roboto, sans-serif";
-  ctx.fillText(label, 14, 30);
 }
 
-function createFace(label, name) {
+function createLabelSprite(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  const labelText = String(text).toUpperCase();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "28px Roboto, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillText(labelText, canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(0.6, 0.15, 1);
+  return sprite;
+}
+
+function createFace(
+  label,
+  name,
+  labelNormalSign = 1,
+  labelEdgeSign = 1,
+  labelExtraOffset = 0,
+  useTextHeightOffset = false,
+  labelNormalMagnitude = 0.03
+) {
   const baseCanvas = document.createElement("canvas");
   baseCanvas.width = faceCanvasSize;
   baseCanvas.height = faceCanvasSize;
@@ -216,11 +249,23 @@ function createFace(label, name) {
   });
 
   const mesh = new THREE.Mesh(planeGeo, material);
+  const labelSprite = createLabelSprite(label);
+  const labelOffset = 0.06;
+  const labelNormalOffset = labelNormalMagnitude * labelNormalSign;
+  const extraOffset =
+    labelExtraOffset + (useTextHeightOffset ? labelSprite.scale.y : 0);
+  labelSprite.position.set(
+    0,
+    (half + labelOffset + extraOffset) * labelEdgeSign,
+    labelNormalOffset
+  );
+  mesh.add(labelSprite);
 
   const face = {
     name,
     label,
     mesh,
+    labelSprite,
     baseCanvas,
     baseCtx,
     displayCanvas,
@@ -236,9 +281,9 @@ function createFace(label, name) {
 }
 
 const faces = {
-  bottom: createFace("Bottom", "bottom"),
-  back: createFace("Back", "back"),
-  side: createFace("Side", "side")
+  bottom: createFace("Bottom", "bottom", -1, -1, 0, true),
+  back: createFace("Back", "back", -1, 1, 0, true, 0.06),
+  side: createFace("Side", "side", -1, 1, 0, true, 0.06)
 };
 
 faces.bottom.mesh.rotation.x = -Math.PI / 2;
