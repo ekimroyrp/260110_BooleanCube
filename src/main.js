@@ -281,7 +281,7 @@ function createFace(
 }
 
 const faces = {
-  bottom: createFace("Bottom", "bottom", -1, -1, 0, true),
+  bottom: createFace("Bottom", "bottom", -1, -1, 0, true, 0.06),
   back: createFace("Back", "back", -1, 1, 0, true, 0.06),
   side: createFace("Side", "side", -1, 1, 0, true, 0.06)
 };
