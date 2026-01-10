@@ -406,13 +406,19 @@ function buildMaskLookup(face, res) {
   const lookup = new Uint8Array(size * size);
 
   for (let y = 0; y <= res; y++) {
-    const v = y / res;
+    const v = (y - 0.5) / res;
+    if (v < 0 || v > 1) {
+      continue;
+    }
     const py = Math.min(
       faceCanvasSize - 1,
       Math.floor((1 - v) * faceCanvasSize)
     );
     for (let x = 0; x <= res; x++) {
-      const u = x / res;
+      const u = (x - 0.5) / res;
+      if (u < 0 || u > 1) {
+        continue;
+      }
       const px = Math.min(faceCanvasSize - 1, Math.floor(u * faceCanvasSize));
       const idx = (py * faceCanvasSize + px) * 4;
       lookup[x + y * size] = data[idx] > 10 ? 1 : 0;
@@ -436,8 +442,9 @@ function buildField(res) {
   for (let z = 0; z <= paddedRes; z++) {
     const zOffset = z * slice;
     const zi = z - 1;
-    const invZ = res - zi;
-    const bottomOffset = invZ * maskSize;
+    const invZ = res - zi + 1;
+    const invZInRange = invZ >= 0 && invZ <= res;
+    const bottomOffset = invZInRange ? invZ * maskSize : 0;
     for (let y = 0; y <= paddedRes; y++) {
       const yOffset = y * size;
       const yi = y - 1;
@@ -449,14 +456,18 @@ function buildField(res) {
         if (xi < 0 || xi > res || yi < 0 || yi > res || zi < 0 || zi > res) {
           inside = false;
         } else {
-          if (bottomMask && bottomMask[xi + bottomOffset] === 0) {
-            inside = false;
+          if (bottomMask) {
+            if (!invZInRange || bottomMask[xi + bottomOffset] === 0) {
+              inside = false;
+            }
           }
           if (backMask && backMask[xi + backOffset] === 0) {
             inside = false;
           }
-          if (sideMask && sideMask[invZ + sideOffset] === 0) {
-            inside = false;
+          if (sideMask) {
+            if (!invZInRange || sideMask[invZ + sideOffset] === 0) {
+              inside = false;
+            }
           }
         }
         field[x + yOffset + zOffset] = inside ? 0 : 1;
@@ -515,7 +526,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   const step = cubeSize / res;
   const coords = new Float32Array(size);
   for (let i = 0; i <= paddedRes; i++) {
-    coords[i] = -half - step + i * step;
+    coords[i] = -half - step * 1.5 + i * step;
   }
 
   const vertexList = new Float32Array(36);
