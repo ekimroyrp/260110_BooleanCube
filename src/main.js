@@ -261,7 +261,7 @@ function setActiveFace(face) {
     const isActive = item.name === face;
     item.mesh.material.emissive.set(isActive ? 0x2a0b12 : 0x171a22);
     item.mesh.material.emissiveIntensity = isActive ? 0.7 : 0.45;
-    item.mesh.material.opacity = isActive ? 1 : 0.95;
+    item.mesh.material.opacity = 0.95;
   });
 }
 
