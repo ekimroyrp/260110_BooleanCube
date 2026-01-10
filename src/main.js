@@ -53,6 +53,7 @@ scene.add(fillLight);
 
 const cubeSize = 2;
 const half = cubeSize / 2;
+const meshInset = 0.01;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
 const paintColor = "rgba(240, 40, 75, 0.45)";
@@ -389,24 +390,18 @@ function buildMaskLookup(face, res) {
   }
 
   const data = face.maskCtx.getImageData(0, 0, faceCanvasSize, faceCanvasSize).data;
-  const size = res + 1;
+  const size = res;
   const lookup = new Uint8Array(size * size);
   let hasAlpha = false;
 
-  for (let y = 0; y <= res; y++) {
-    const v = (y - 0.5) / res;
-    if (v < 0 || v > 1) {
-      continue;
-    }
+  for (let y = 0; y < res; y++) {
+    const v = (y + 0.5) / res;
     const py = Math.min(
       faceCanvasSize - 1,
       Math.floor((1 - v) * faceCanvasSize)
     );
-    for (let x = 0; x <= res; x++) {
-      const u = (x - 0.5) / res;
-      if (u < 0 || u > 1) {
-        continue;
-      }
+    for (let x = 0; x < res; x++) {
+      const u = (x + 0.5) / res;
       const px = Math.min(faceCanvasSize - 1, Math.floor(u * faceCanvasSize));
       const idx = (py * faceCanvasSize + px) * 4;
       if (data[idx + 3] > 10) {
@@ -420,11 +415,11 @@ function buildMaskLookup(face, res) {
 }
 
 function buildField(res) {
-  const paddedRes = res + 2;
+  const paddedRes = res + 1;
   const size = paddedRes + 1;
   const slice = size * size;
   const field = new Float32Array(size * size * size);
-  const maskSize = res + 1;
+  const maskSize = res;
 
   const bottomMask = buildMaskLookup(faces.bottom, res);
   const backMask = buildMaskLookup(faces.back, res);
@@ -433,9 +428,8 @@ function buildField(res) {
   for (let z = 0; z <= paddedRes; z++) {
     const zOffset = z * slice;
     const zi = z - 1;
-    const invZ = res - zi + 1;
-    const invZInRange = invZ >= 0 && invZ <= res;
-    const bottomOffset = invZInRange ? invZ * maskSize : 0;
+    const invZ = res - 1 - zi;
+    const bottomOffset = invZ * maskSize;
     for (let y = 0; y <= paddedRes; y++) {
       const yOffset = y * size;
       const yi = y - 1;
@@ -444,11 +438,18 @@ function buildField(res) {
       for (let x = 0; x <= paddedRes; x++) {
         const xi = x - 1;
         let inside = true;
-        if (xi < 0 || xi > res || yi < 0 || yi > res || zi < 0 || zi > res) {
+        if (
+          xi < 0 ||
+          xi >= res ||
+          yi < 0 ||
+          yi >= res ||
+          zi < 0 ||
+          zi >= res
+        ) {
           inside = false;
         } else {
           if (bottomMask) {
-            if (!invZInRange || bottomMask[xi + bottomOffset] === 0) {
+            if (bottomMask[xi + bottomOffset] === 0) {
               inside = false;
             }
           }
@@ -456,7 +457,7 @@ function buildField(res) {
             inside = false;
           }
           if (sideMask) {
-            if (!invZInRange || sideMask[invZ + sideOffset] === 0) {
+            if (sideMask[invZ + sideOffset] === 0) {
               inside = false;
             }
           }
@@ -517,7 +518,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   const step = cubeSize / res;
   const coords = new Float32Array(size);
   for (let i = 0; i <= paddedRes; i++) {
-    coords[i] = -half - step * 1.5 + i * step;
+    coords[i] = -half - step * 0.5 + i * step;
   }
 
   const vertexList = new Float32Array(36);
@@ -572,6 +573,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
         cornerX[6] = x1;
         cornerX[7] = x0;
 
+
         cornerY[0] = y0;
         cornerY[1] = y0;
         cornerY[2] = y1;
@@ -581,6 +583,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
         cornerY[6] = y1;
         cornerY[7] = y1;
 
+
         cornerZ[0] = z0;
         cornerZ[1] = z0;
         cornerZ[2] = z0;
@@ -589,6 +592,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
         cornerZ[5] = z1;
         cornerZ[6] = z1;
         cornerZ[7] = z1;
+
 
         for (let edge = 0; edge < 12; edge++) {
           if (edgeMask & (1 << edge)) {
@@ -669,10 +673,14 @@ function rebuildMesh() {
 
   if (!resultMesh) {
     resultMesh = new THREE.Mesh(geometry, resultMaterial);
+    const scale = (cubeSize - meshInset * 2) / cubeSize;
+    resultMesh.scale.setScalar(scale);
     scene.add(resultMesh);
   } else {
     resultMesh.geometry.dispose();
     resultMesh.geometry = geometry;
+    const scale = (cubeSize - meshInset * 2) / cubeSize;
+    resultMesh.scale.setScalar(scale);
   }
 
   updateMeshStats(Math.round(triangles));
