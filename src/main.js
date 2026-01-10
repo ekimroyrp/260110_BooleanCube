@@ -55,8 +55,7 @@ const cubeSize = 2;
 const half = cubeSize / 2;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
-const paintColor = "rgba(240, 40, 75, 0.9)";
-const paintColorStrong = "rgba(240, 40, 75, 0.95)";
+const paintColor = "rgba(240, 40, 75, 0.45)";
 const paintCanvas = document.createElement("canvas");
 paintCanvas.width = faceCanvasSize;
 paintCanvas.height = faceCanvasSize;
@@ -144,8 +143,7 @@ function createFace(label, name) {
   maskCanvas.width = faceCanvasSize;
   maskCanvas.height = faceCanvasSize;
   const maskCtx = maskCanvas.getContext("2d");
-  maskCtx.fillStyle = "#000000";
-  maskCtx.fillRect(0, 0, faceCanvasSize, faceCanvasSize);
+  maskCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
 
   const displayCanvas = document.createElement("canvas");
   displayCanvas.width = faceCanvasSize;
@@ -304,20 +302,10 @@ function paintStroke(face, fromUv, toUv) {
   const to = uvToCanvas(toUv);
   const radius = getBrushRadius();
 
-  face.displayCtx.lineCap = "round";
-  face.displayCtx.lineJoin = "round";
-  face.displayCtx.strokeStyle = paintColor;
-  face.displayCtx.lineWidth = radius * 2;
-
   face.maskCtx.lineCap = "round";
   face.maskCtx.lineJoin = "round";
   face.maskCtx.strokeStyle = "#ffffff";
   face.maskCtx.lineWidth = radius * 2;
-
-  face.displayCtx.beginPath();
-  face.displayCtx.moveTo(from.x, from.y);
-  face.displayCtx.lineTo(to.x, to.y);
-  face.displayCtx.stroke();
 
   face.maskCtx.beginPath();
   face.maskCtx.moveTo(from.x, from.y);
@@ -327,19 +315,14 @@ function paintStroke(face, fromUv, toUv) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   if (dx * dx + dy * dy < 0.5) {
-    face.displayCtx.fillStyle = paintColorStrong;
-    face.displayCtx.beginPath();
-    face.displayCtx.arc(to.x, to.y, radius, 0, Math.PI * 2);
-    face.displayCtx.fill();
-
     face.maskCtx.fillStyle = "#ffffff";
     face.maskCtx.beginPath();
     face.maskCtx.arc(to.x, to.y, radius, 0, Math.PI * 2);
     face.maskCtx.fill();
   }
 
-  face.texture.needsUpdate = true;
   face.hasPaint = true;
+  refreshFaceDisplay(face);
 }
 
 function refreshFaceDisplay(face) {
@@ -363,8 +346,6 @@ function refreshFaceDisplay(face) {
 
 function resetFace(face) {
   face.maskCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
-  face.maskCtx.fillStyle = "#000000";
-  face.maskCtx.fillRect(0, 0, faceCanvasSize, faceCanvasSize);
   face.hasPaint = false;
   refreshFaceDisplay(face);
 }
@@ -421,7 +402,7 @@ function buildMaskLookup(face, res) {
       }
       const px = Math.min(faceCanvasSize - 1, Math.floor(u * faceCanvasSize));
       const idx = (py * faceCanvasSize + px) * 4;
-      lookup[x + y * size] = data[idx] > 10 ? 1 : 0;
+      lookup[x + y * size] = data[idx + 3] > 10 ? 1 : 0;
     }
   }
 
