@@ -397,13 +397,12 @@ function paintStroke(face, fromUv, toUv, mode) {
   const radius = getBrushRadius();
 
   const isErase = mode === "erase";
+  const composite = isErase ? "destination-out" : "source-over";
   face.maskCtx.lineCap = "round";
   face.maskCtx.lineJoin = "round";
   face.maskCtx.strokeStyle = isErase ? "rgba(0,0,0,1)" : "#ffffff";
   face.maskCtx.lineWidth = radius * 2;
-  face.maskCtx.globalCompositeOperation = isErase
-    ? "destination-out"
-    : "source-over";
+  face.maskCtx.globalCompositeOperation = composite;
 
   face.maskCtx.beginPath();
   face.maskCtx.moveTo(from.x, from.y);
@@ -413,15 +412,28 @@ function paintStroke(face, fromUv, toUv, mode) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   if (dx * dx + dy * dy < 0.5) {
-    face.maskCtx.fillStyle = "#ffffff";
+    face.maskCtx.globalCompositeOperation = composite;
+    face.maskCtx.fillStyle = isErase ? "rgba(0,0,0,1)" : "#ffffff";
     face.maskCtx.beginPath();
     face.maskCtx.arc(to.x, to.y, radius, 0, Math.PI * 2);
     face.maskCtx.fill();
   }
 
   face.maskCtx.globalCompositeOperation = "source-over";
-  face.hasPaint = true;
+  if (mode !== "erase") {
+    face.hasPaint = true;
+  }
   refreshFaceDisplay(face);
+}
+
+function hasAnyPaint(face) {
+  const data = face.maskCtx.getImageData(0, 0, faceCanvasSize, faceCanvasSize).data;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] > 10) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function refreshFaceDisplay(face) {
@@ -484,7 +496,6 @@ function buildMaskLookup(face, res) {
   const data = face.maskCtx.getImageData(0, 0, faceCanvasSize, faceCanvasSize).data;
   const size = res;
   const lookup = new Uint8Array(size * size);
-  let hasAlpha = false;
 
   for (let y = 0; y < res; y++) {
     const v = (y + 0.5) / res;
@@ -498,12 +509,11 @@ function buildMaskLookup(face, res) {
       const idx = (py * faceCanvasSize + px) * 4;
       if (data[idx + 3] > 10) {
         lookup[x + y * size] = 1;
-        hasAlpha = true;
       }
     }
   }
 
-  return hasAlpha ? lookup : null;
+  return lookup;
 }
 
 function buildField(res) {
@@ -839,21 +849,33 @@ renderer.domElement.addEventListener("pointerup", (event) => {
     return;
   }
 
+  const finishedFace = paintFace;
+  const finishedMode = paintMode;
   isPainting = false;
   paintMode = "draw";
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
   renderer.domElement.releasePointerCapture(event.pointerId);
+  if (finishedMode === "erase" && finishedFace) {
+    finishedFace.hasPaint = hasAnyPaint(finishedFace);
+    refreshFaceDisplay(finishedFace);
+  }
   scheduleRebuild(120);
 });
 
 renderer.domElement.addEventListener("pointercancel", () => {
+  const finishedFace = paintFace;
+  const finishedMode = paintMode;
   isPainting = false;
   paintMode = "draw";
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
+  if (finishedMode === "erase" && finishedFace) {
+    finishedFace.hasPaint = hasAnyPaint(finishedFace);
+    refreshFaceDisplay(finishedFace);
+  }
   scheduleRebuild(120);
 });
 
