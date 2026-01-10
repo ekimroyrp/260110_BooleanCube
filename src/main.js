@@ -30,9 +30,9 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0, 0);
 controls.mouseButtons = {
-  LEFT: THREE.MOUSE.PAN,
+  LEFT: THREE.MOUSE.ROTATE,
   MIDDLE: THREE.MOUSE.DOLLY,
-  RIGHT: THREE.MOUSE.ROTATE
+  RIGHT: THREE.MOUSE.PAN
 };
 controls.touches = {
   ONE: THREE.TOUCH.ROTATE,
