@@ -230,6 +230,7 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
 let isPainting = false;
+let paintMode = "draw";
 let paintFace = null;
 let lastUv = null;
 let activeFace = "bottom";
@@ -293,7 +294,7 @@ function uvToCanvas(uv) {
   };
 }
 
-function paintStroke(face, fromUv, toUv) {
+function paintStroke(face, fromUv, toUv, mode) {
   if (!face) {
     return;
   }
@@ -302,10 +303,14 @@ function paintStroke(face, fromUv, toUv) {
   const to = uvToCanvas(toUv);
   const radius = getBrushRadius();
 
+  const isErase = mode === "erase";
   face.maskCtx.lineCap = "round";
   face.maskCtx.lineJoin = "round";
-  face.maskCtx.strokeStyle = "#ffffff";
+  face.maskCtx.strokeStyle = isErase ? "rgba(0,0,0,1)" : "#ffffff";
   face.maskCtx.lineWidth = radius * 2;
+  face.maskCtx.globalCompositeOperation = isErase
+    ? "destination-out"
+    : "source-over";
 
   face.maskCtx.beginPath();
   face.maskCtx.moveTo(from.x, from.y);
@@ -321,6 +326,7 @@ function paintStroke(face, fromUv, toUv) {
     face.maskCtx.fill();
   }
 
+  face.maskCtx.globalCompositeOperation = "source-over";
   face.hasPaint = true;
   refreshFaceDisplay(face);
 }
@@ -385,6 +391,7 @@ function buildMaskLookup(face, res) {
   const data = face.maskCtx.getImageData(0, 0, faceCanvasSize, faceCanvasSize).data;
   const size = res + 1;
   const lookup = new Uint8Array(size * size);
+  let hasAlpha = false;
 
   for (let y = 0; y <= res; y++) {
     const v = (y - 0.5) / res;
@@ -402,11 +409,14 @@ function buildMaskLookup(face, res) {
       }
       const px = Math.min(faceCanvasSize - 1, Math.floor(u * faceCanvasSize));
       const idx = (py * faceCanvasSize + px) * 4;
-      lookup[x + y * size] = data[idx + 3] > 10 ? 1 : 0;
+      if (data[idx + 3] > 10) {
+        lookup[x + y * size] = 1;
+        hasAlpha = true;
+      }
     }
   }
 
-  return lookup;
+  return hasAlpha ? lookup : null;
 }
 
 function buildField(res) {
@@ -695,7 +705,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
     return;
   }
 
-  paintStroke(paintFace, lastUv || hit.uv, hit.uv);
+  paintStroke(paintFace, lastUv || hit.uv, hit.uv, paintMode);
   lastUv = hit.uv;
 });
 
@@ -704,7 +714,7 @@ renderer.domElement.addEventListener("pointerleave", () => {
 });
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0) {
+  if (event.button !== 0 && event.button !== 2) {
     return;
   }
 
@@ -715,10 +725,11 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
   event.preventDefault();
   isPainting = true;
+  paintMode = event.button === 2 ? "erase" : "draw";
   paintFace = hit.object.userData.face;
   lastUv = hit.uv;
   setActiveFace(paintFace.name);
-  paintStroke(paintFace, hit.uv, hit.uv);
+  paintStroke(paintFace, hit.uv, hit.uv, paintMode);
   controls.enabled = false;
   renderer.domElement.setPointerCapture(event.pointerId);
 });
@@ -729,6 +740,7 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   }
 
   isPainting = false;
+  paintMode = "draw";
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
@@ -738,10 +750,15 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 
 renderer.domElement.addEventListener("pointercancel", () => {
   isPainting = false;
+  paintMode = "draw";
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
   scheduleRebuild(120);
+});
+
+renderer.domElement.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
 });
 
 const updateRendererSize = () => {
