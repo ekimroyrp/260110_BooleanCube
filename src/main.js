@@ -99,10 +99,10 @@ function updateRange(input, output, formatter) {
   return value;
 }
 
-function updateMeshStats(triangles) {
-  const density = Number(densityInput.value);
-  const faceCount = typeof triangles === "number" ? triangles : "--";
-  meshStats.textContent = `Voxels: ${density}^3 | Faces: ${faceCount}`;
+function updateMeshStats(faces, vertices) {
+  const faceCount = typeof faces === "number" ? faces : "--";
+  const vertexCount = typeof vertices === "number" ? vertices : 0;
+  meshStats.textContent = `Faces: ${faceCount} | Vertices: ${vertexCount}`;
 }
 
 function startPanelDrag(event) {
@@ -738,7 +738,7 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   }
 
   if (positions.length === 0) {
-    return { geometry: null, triangles: 0 };
+    return { geometry: null, triangles: 0, vertices: 0 };
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -747,7 +747,11 @@ function buildSurfaceGeometry(field, res, paddedRes) {
     new THREE.Float32BufferAttribute(positions, 3)
   );
   geometry.computeVertexNormals();
-  return { geometry, triangles: positions.length / 9 };
+  return {
+    geometry,
+    triangles: positions.length / 9,
+    vertices: positions.length / 3
+  };
 }
 
 function rebuildMesh() {
@@ -758,18 +762,22 @@ function rebuildMesh() {
     faces.bottom.hasPaint || faces.back.hasPaint || faces.side.hasPaint;
   if (!anyPaint) {
     clearResult();
-    updateMeshStats(0);
+    updateMeshStats(0, 0);
     return;
   }
 
   meshStats.textContent = "Building...";
   const { field: baseField, paddedRes } = buildField(density);
   const field = smoothField(baseField, paddedRes, smoothIterations);
-  const { geometry, triangles } = buildSurfaceGeometry(field, density, paddedRes);
+  const { geometry, triangles, vertices } = buildSurfaceGeometry(
+    field,
+    density,
+    paddedRes
+  );
 
   if (!geometry) {
     clearResult();
-    updateMeshStats(0);
+    updateMeshStats(0, 0);
     return;
   }
 
@@ -785,7 +793,7 @@ function rebuildMesh() {
     resultMesh.scale.setScalar(scale);
   }
 
-  updateMeshStats(Math.round(triangles));
+  updateMeshStats(Math.round(triangles), Math.round(vertices));
 }
 
 function clearResult() {
@@ -926,7 +934,7 @@ rebuildButton.addEventListener("click", () => rebuildMesh());
 clearButton.addEventListener("click", () => {
   Object.values(faces).forEach((face) => resetFace(face));
   clearResult();
-  updateMeshStats(0);
+  updateMeshStats(0, 0);
 });
 
 updateRange(densityInput, densityValue);
