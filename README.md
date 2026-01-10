@@ -1,12 +1,12 @@
 # 260110_BooleanCube
 
-260110_BooleanCube is a Three.js prototype of a ShadowBox-style Boolean sculpting tool, currently focused on the UI shell and the three-face cube canvas.
+260110_BooleanCube is a Three.js tool that prototypes a ShadowBox-style Boolean sculpting workflow by intersecting silhouettes drawn on three cube faces.
 
 ## Features
-- Vite + Three.js project scaffold
-- Three-face cube (bottom/back/side) with grid textures
-- MeshSculpter-styled floating control panel
-- Orbit camera controls and brush cursor overlay
+- Paintable bottom/back/side faces with brush overlay
+- Silhouette intersection to generate a volume mesh (marching cubes)
+- Face density and smoothing controls with rebuild/clear actions
+- Orbit/pan camera controls with live UI feedback
 
 ## Getting Started
 1. Clone the repository.
@@ -14,7 +14,8 @@
 3. Start the dev server with `npm run dev`.
 
 ## Controls
-- Left drag: orbit camera
+- Left drag on a face: paint
+- Left drag on empty space: pan camera
+- Right drag: orbit camera
 - Mouse wheel: zoom
-- Right drag: pan camera
-- UI sliders and face buttons update the UI state (painting/boolean still in progress)
+- Rebuild/Clear update the generated mesh

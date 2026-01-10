@@ -37,6 +37,8 @@ body {
 
 #canvas-host canvas {
   display: block;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 #brush-overlay {
