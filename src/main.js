@@ -55,6 +55,12 @@ const cubeSize = 2;
 const half = cubeSize / 2;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
+const paintColor = "rgba(240, 40, 75, 0.9)";
+const paintColorStrong = "rgba(240, 40, 75, 0.95)";
+const paintCanvas = document.createElement("canvas");
+paintCanvas.width = faceCanvasSize;
+paintCanvas.height = faceCanvasSize;
+const paintCtx = paintCanvas.getContext("2d");
 
 const brushOverlay = document.getElementById("brush-overlay");
 const brushCircle = document.getElementById("brush-circle");
@@ -92,22 +98,29 @@ function updateMeshStats(triangles) {
   meshStats.textContent = `Voxels: ${density}^3 | Faces: ${faceCount}`;
 }
 
-function drawFaceBase(ctx, label) {
+function getDensityValue() {
+  return Math.max(2, Math.round(Number(densityInput.value) || 16));
+}
+
+function drawFaceBase(ctx, label, density) {
   ctx.fillStyle = "#2a2e38";
   ctx.fillRect(0, 0, faceCanvasSize, faceCanvasSize);
 
-  const step = faceCanvasSize / 16;
+  const divisions = Math.max(2, density);
+  const step = faceCanvasSize / divisions;
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
   ctx.lineWidth = 1;
-  for (let i = 0; i <= faceCanvasSize; i += step) {
+  for (let i = 0; i <= divisions; i++) {
+    const pos = i * step;
+    const linePos = Math.min(faceCanvasSize - 0.5, Math.round(pos) + 0.5);
     ctx.beginPath();
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i, faceCanvasSize);
+    ctx.moveTo(linePos, 0);
+    ctx.lineTo(linePos, faceCanvasSize);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(0, i);
-    ctx.lineTo(faceCanvasSize, i);
+    ctx.moveTo(0, linePos);
+    ctx.lineTo(faceCanvasSize, linePos);
     ctx.stroke();
   }
 
@@ -125,7 +138,7 @@ function createFace(label, name) {
   baseCanvas.width = faceCanvasSize;
   baseCanvas.height = faceCanvasSize;
   const baseCtx = baseCanvas.getContext("2d");
-  drawFaceBase(baseCtx, label);
+  drawFaceBase(baseCtx, label, getDensityValue());
 
   const maskCanvas = document.createElement("canvas");
   maskCanvas.width = faceCanvasSize;
@@ -293,7 +306,7 @@ function paintStroke(face, fromUv, toUv) {
 
   face.displayCtx.lineCap = "round";
   face.displayCtx.lineJoin = "round";
-  face.displayCtx.strokeStyle = "rgba(240, 40, 75, 0.9)";
+  face.displayCtx.strokeStyle = paintColor;
   face.displayCtx.lineWidth = radius * 2;
 
   face.maskCtx.lineCap = "round";
@@ -314,7 +327,7 @@ function paintStroke(face, fromUv, toUv) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   if (dx * dx + dy * dy < 0.5) {
-    face.displayCtx.fillStyle = "rgba(240, 40, 75, 0.95)";
+    face.displayCtx.fillStyle = paintColorStrong;
     face.displayCtx.beginPath();
     face.displayCtx.arc(to.x, to.y, radius, 0, Math.PI * 2);
     face.displayCtx.fill();
@@ -329,15 +342,38 @@ function paintStroke(face, fromUv, toUv) {
   face.hasPaint = true;
 }
 
+function refreshFaceDisplay(face) {
+  face.displayCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
+  face.displayCtx.drawImage(face.baseCanvas, 0, 0);
+  if (!face.hasPaint) {
+    face.texture.needsUpdate = true;
+    return;
+  }
+
+  paintCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
+  paintCtx.fillStyle = paintColor;
+  paintCtx.fillRect(0, 0, faceCanvasSize, faceCanvasSize);
+  paintCtx.globalCompositeOperation = "destination-in";
+  paintCtx.drawImage(face.maskCanvas, 0, 0);
+  paintCtx.globalCompositeOperation = "source-over";
+
+  face.displayCtx.drawImage(paintCanvas, 0, 0);
+  face.texture.needsUpdate = true;
+}
+
 function resetFace(face) {
   face.maskCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
   face.maskCtx.fillStyle = "#000000";
   face.maskCtx.fillRect(0, 0, faceCanvasSize, faceCanvasSize);
-
-  face.displayCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
-  face.displayCtx.drawImage(face.baseCanvas, 0, 0);
-  face.texture.needsUpdate = true;
   face.hasPaint = false;
+  refreshFaceDisplay(face);
+}
+
+function updateFaceGrids(density) {
+  Object.values(faces).forEach((face) => {
+    drawFaceBase(face.baseCtx, face.label, density);
+    refreshFaceDisplay(face);
+  });
 }
 
 function getIntersection(event, targets) {
@@ -731,6 +767,7 @@ const updateRendererSize = () => {
     if (input === densityInput) {
       updateRange(input, densityValue);
       updateMeshStats();
+      updateFaceGrids(getDensityValue());
       scheduleRebuild(200);
     } else if (input === smoothingInput) {
       updateRange(input, smoothValue, (value) => `${value}x`);
@@ -758,6 +795,7 @@ updateRange(densityInput, densityValue);
 updateRange(smoothingInput, smoothValue, (value) => `${value}x`);
 updateRange(brushSizeInput, brushValue, (value) => `${value}%`);
 updateBrushRadii();
+updateFaceGrids(getDensityValue());
 updateMeshStats(0);
 setActiveFace("bottom");
 
