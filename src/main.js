@@ -77,8 +77,15 @@ const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const brushValue = document.getElementById("brush-value");
 const meshStats = document.getElementById("mesh-stats");
+const panel = document.getElementById("panel");
+const panelHandle = document.getElementById("panel-handle");
+const panelHandleBottom = document.getElementById("panel-handle-bottom");
 
 const faceButtons = Array.from(document.querySelectorAll("[data-face]"));
+
+let isPanelDragging = false;
+let panelDragStart = { x: 0, y: 0 };
+let panelPointerStart = { x: 0, y: 0 };
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -96,6 +103,46 @@ function updateMeshStats(triangles) {
   const density = Number(densityInput.value);
   const faceCount = typeof triangles === "number" ? triangles : "--";
   meshStats.textContent = `Voxels: ${density}^3 | Faces: ${faceCount}`;
+}
+
+function startPanelDrag(event) {
+  if (event.button !== 0 && event.pointerType === "mouse") {
+    return;
+  }
+  const rect = panel.getBoundingClientRect();
+  isPanelDragging = true;
+  panelDragStart = { x: rect.left, y: rect.top };
+  panelPointerStart = { x: event.clientX, y: event.clientY };
+  panel.style.left = `${panelDragStart.x}px`;
+  panel.style.top = `${panelDragStart.y}px`;
+  panel.style.right = "auto";
+  panel.style.bottom = "auto";
+  panel.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}
+
+function onPanelDrag(event) {
+  if (!isPanelDragging) {
+    return;
+  }
+  const dx = event.clientX - panelPointerStart.x;
+  const dy = event.clientY - panelPointerStart.y;
+  const width = panel.offsetWidth;
+  const height = panel.offsetHeight;
+  const maxX = Math.max(8, window.innerWidth - width - 8);
+  const maxY = Math.max(8, window.innerHeight - height - 8);
+  const nextX = Math.min(Math.max(8, panelDragStart.x + dx), maxX);
+  const nextY = Math.min(Math.max(8, panelDragStart.y + dy), maxY);
+  panel.style.left = `${nextX}px`;
+  panel.style.top = `${nextY}px`;
+}
+
+function stopPanelDrag(event) {
+  if (!isPanelDragging) {
+    return;
+  }
+  isPanelDragging = false;
+  panel.releasePointerCapture(event.pointerId);
 }
 
 function getDensityValue() {
@@ -799,6 +846,13 @@ const updateRendererSize = () => {
 faceButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFace(button.dataset.face));
 });
+
+[panelHandle, panelHandleBottom].forEach((handle) => {
+  handle.addEventListener("pointerdown", startPanelDrag);
+});
+window.addEventListener("pointermove", onPanelDrag);
+window.addEventListener("pointerup", stopPanelDrag);
+window.addEventListener("pointercancel", stopPanelDrag);
 
 rebuildButton.addEventListener("click", () => rebuildMesh());
 
