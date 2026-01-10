@@ -400,7 +400,8 @@ function buildField(res) {
   for (let z = 0; z <= paddedRes; z++) {
     const zOffset = z * slice;
     const zi = z - 1;
-    const bottomOffset = zi * maskSize;
+    const invZ = res - zi;
+    const bottomOffset = invZ * maskSize;
     for (let y = 0; y <= paddedRes; y++) {
       const yOffset = y * size;
       const yi = y - 1;
@@ -418,7 +419,7 @@ function buildField(res) {
           if (backMask && backMask[xi + backOffset] === 0) {
             inside = false;
           }
-          if (sideMask && sideMask[zi + sideOffset] === 0) {
+          if (sideMask && sideMask[invZ + sideOffset] === 0) {
             inside = false;
           }
         }
