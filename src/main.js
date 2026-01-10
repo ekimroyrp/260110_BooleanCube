@@ -24,7 +24,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(2.8, 2.1, 2.8);
+camera.position.set(1.78, 2.1, 4.29);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -879,10 +879,10 @@ const updateRendererSize = () => {
       updateFaceGrids(getDensityValue());
       scheduleRebuild(200);
     } else if (input === smoothingInput) {
-      updateRange(input, smoothValue, (value) => `${value}x`);
+      updateRange(input, smoothValue);
       scheduleRebuild(200);
     } else {
-      updateRange(input, brushValue, (value) => `${value}%`);
+      updateRange(input, brushValue);
       updateBrushRadii();
     }
   });
@@ -908,8 +908,8 @@ clearButton.addEventListener("click", () => {
 });
 
 updateRange(densityInput, densityValue);
-updateRange(smoothingInput, smoothValue, (value) => `${value}x`);
-updateRange(brushSizeInput, brushValue, (value) => `${value}%`);
+updateRange(smoothingInput, smoothValue);
+updateRange(brushSizeInput, brushValue);
 updateBrushRadii();
 updateFaceGrids(getDensityValue());
 updateMeshStats(0);
