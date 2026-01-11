@@ -213,12 +213,8 @@ function onPanelDrag(event) {
   }
   const dx = event.clientX - panelPointerStart.x;
   const dy = event.clientY - panelPointerStart.y;
-  const width = panel.offsetWidth;
-  const height = panel.offsetHeight;
-  const maxX = Math.max(8, window.innerWidth - width - 8);
-  const maxY = Math.max(8, window.innerHeight - height - 8);
-  const nextX = Math.min(Math.max(8, panelDragStart.x + dx), maxX);
-  const nextY = Math.min(Math.max(8, panelDragStart.y + dy), maxY);
+  const nextX = panelDragStart.x + dx;
+  const nextY = panelDragStart.y + dy;
   panel.style.left = `${nextX}px`;
   panel.style.top = `${nextY}px`;
 }
@@ -253,12 +249,6 @@ function syncPanelToWindowResize() {
     if (!topEdgeMoved && deltaHeight !== 0) {
       nextTop += deltaHeight;
     }
-    const width = panel.offsetWidth;
-    const height = panel.offsetHeight;
-    const maxX = Math.max(8, currentWidth - width - 8);
-    const maxY = Math.max(8, currentHeight - height - 8);
-    nextLeft = Math.min(Math.max(8, nextLeft), maxX);
-    nextTop = Math.min(Math.max(8, nextTop), maxY);
     panel.style.left = `${nextLeft}px`;
     panel.style.top = `${nextTop}px`;
   }
