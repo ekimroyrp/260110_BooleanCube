@@ -546,7 +546,6 @@ let paintMode = "draw";
 let paintFace = null;
 let lastUv = null;
 let paintPointerId = null;
-let activeFace = "bottom";
 let strokeModified = false;
 let booleanMode = "intersect";
 let wireframeEnabled = false;
@@ -573,16 +572,6 @@ const EDGE_CONNECTIONS = [
   [2, 6],
   [3, 7]
 ];
-
-function setActiveFace(face) {
-  activeFace = face;
-  Object.values(faces).forEach((item) => {
-    const isActive = item.name === face;
-    item.mesh.material.emissive.set(isActive ? 0x0e0b2a : 0x171a22);
-    item.mesh.material.emissiveIntensity = isActive ? 0.7 : 0.45;
-    item.mesh.material.opacity = 0.95;
-  });
-}
 
 function startCameraTween(endPos, endTarget) {
   cameraTween.active = true;
@@ -1571,7 +1560,6 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   paintMode = event.button === 2 ? "erase" : "draw";
   paintFace = hit.object.userData.face;
   lastUv = hit.uv;
-  setActiveFace(paintFace.name);
   paintStroke(paintFace, hit.uv, hit.uv, paintMode);
   controls.enabled = false;
   paintPointerId = event.pointerId;
@@ -1824,7 +1812,6 @@ updateRange(brushSizeInput, brushValue);
 updateBrushRadii();
 updateFaceGrids(getDensityValue());
 updateMeshStats(0);
-setActiveFace("bottom");
 setBooleanMode("intersect", false, false);
 syncWireframeToggle();
 syncProjectionsToggle();
