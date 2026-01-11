@@ -19,13 +19,18 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
 host.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(
+const perspectiveCamera = new THREE.PerspectiveCamera(
   45,
   initialWidth / initialHeight,
   0.1,
   100
 );
-camera.position.set(1.78, 2.1, 4.29);
+perspectiveCamera.position.set(1.78, 2.1, 4.29);
+
+const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+orthoCamera.position.copy(perspectiveCamera.position);
+
+let camera = perspectiveCamera;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -41,9 +46,10 @@ controls.touches = {
 };
 controls.update();
 controls.addEventListener("change", () => {
+  maybeExitOrtho();
   refreshBrushFromPointer();
 });
-const defaultCameraPosition = camera.position.clone();
+const defaultCameraPosition = perspectiveCamera.position.clone();
 const defaultCameraTarget = controls.target.clone();
 const cameraTween = {
   active: false,
@@ -60,6 +66,12 @@ const cameraTween = {
   startQuat: new THREE.Quaternion(),
   endQuat: new THREE.Quaternion()
 };
+let cameraMode = "perspective";
+let suppressOrthoExit = false;
+const orthoLockDirection = new THREE.Vector3();
+const orthoLockTarget = new THREE.Vector3();
+const orthoExitDotThreshold = 0.999;
+const orthoExitTargetThresholdSq = 1e-4;
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
@@ -540,6 +552,7 @@ const viewDirection = new THREE.Vector3();
 const tweenDirection = new THREE.Vector3();
 const tweenQuat = new THREE.Quaternion();
 const refViewDirection = new THREE.Vector3(0, 0, 1);
+const orthoCurrentDirection = new THREE.Vector3();
 
 let isPainting = false;
 let paintMode = "draw";
@@ -572,6 +585,78 @@ const EDGE_CONNECTIONS = [
   [2, 6],
   [3, 7]
 ];
+
+function updateOrthoFrustum(distance) {
+  const height =
+    2 *
+    distance *
+    Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov * 0.5));
+  const width =
+    height * ((pendingResize?.width || initialWidth) / (pendingResize?.height || initialHeight));
+  orthoCamera.left = -width * 0.5;
+  orthoCamera.right = width * 0.5;
+  orthoCamera.top = height * 0.5;
+  orthoCamera.bottom = -height * 0.5;
+  orthoCamera.near = perspectiveCamera.near;
+  orthoCamera.far = perspectiveCamera.far;
+  orthoCamera.updateProjectionMatrix();
+}
+
+function enterOrtho(lockDirection, lockTarget) {
+  suppressOrthoExit = true;
+  if (lockDirection) {
+    orthoLockDirection.copy(lockDirection).normalize();
+  }
+  if (lockTarget) {
+    orthoLockTarget.copy(lockTarget);
+  }
+  const distance = camera.position.distanceTo(controls.target);
+  if (cameraMode !== "ortho") {
+    orthoCamera.position.copy(camera.position);
+    orthoCamera.quaternion.copy(camera.quaternion);
+    orthoCamera.up.copy(camera.up);
+    cameraMode = "ortho";
+    camera = orthoCamera;
+    controls.object = orthoCamera;
+  }
+  orthoCamera.zoom = 1;
+  updateOrthoFrustum(distance);
+  controls.update();
+}
+
+function exitOrtho() {
+  if (cameraMode !== "ortho") {
+    return;
+  }
+  perspectiveCamera.position.copy(camera.position);
+  perspectiveCamera.quaternion.copy(camera.quaternion);
+  perspectiveCamera.up.copy(camera.up);
+  const width = pendingResize?.width || initialWidth;
+  const height = pendingResize?.height || initialHeight;
+  perspectiveCamera.aspect = width / height;
+  perspectiveCamera.updateProjectionMatrix();
+  cameraMode = "perspective";
+  camera = perspectiveCamera;
+  controls.object = perspectiveCamera;
+  controls.update();
+  orthoLockDirection.set(0, 0, 0);
+  suppressOrthoExit = false;
+}
+
+function maybeExitOrtho() {
+  if (cameraMode !== "ortho" || cameraTween.active || suppressOrthoExit) {
+    return;
+  }
+  if (orthoLockDirection.lengthSq() === 0) {
+    return;
+  }
+  orthoCurrentDirection.copy(camera.position).sub(controls.target).normalize();
+  const dot = orthoCurrentDirection.dot(orthoLockDirection);
+  const targetDelta = controls.target.distanceToSquared(orthoLockTarget);
+  if (dot < orthoExitDotThreshold || targetDelta > orthoExitTargetThresholdSq) {
+    exitOrtho();
+  }
+}
 
 function startCameraTween(endPos, endTarget) {
   cameraTween.active = true;
@@ -614,10 +699,12 @@ function focusCameraOnLabel(labelSprite) {
   const distance = camera.position.distanceTo(controls.target);
   viewTarget.copy(defaultCameraTarget);
   viewEndPos.copy(viewTarget).addScaledVector(viewDirection, distance);
+  enterOrtho(viewDirection, viewTarget);
   startCameraTween(viewEndPos, viewTarget);
 }
 
 function resetCamera() {
+  exitOrtho();
   startCameraTween(defaultCameraPosition, defaultCameraTarget);
 }
 
@@ -1650,8 +1737,13 @@ const applyRendererResize = () => {
   }
   pendingResize.dirty = false;
   renderer.setSize(pendingResize.width, pendingResize.height, false);
-  camera.aspect = pendingResize.width / pendingResize.height;
-  camera.updateProjectionMatrix();
+  if (cameraMode === "ortho") {
+    const distance = camera.position.distanceTo(controls.target);
+    updateOrthoFrustum(distance);
+  } else {
+    camera.aspect = pendingResize.width / pendingResize.height;
+    camera.updateProjectionMatrix();
+  }
   brushOverlay.setAttribute("width", pendingResize.width);
   brushOverlay.setAttribute("height", pendingResize.height);
   refreshBrushFromPointer();
@@ -1850,6 +1942,9 @@ function animate() {
     if (t >= 1) {
       cameraTween.active = false;
     }
+  }
+  if (!cameraTween.active && suppressOrthoExit && cameraMode === "ortho") {
+    suppressOrthoExit = false;
   }
   controls.update();
   if (cameraTween.active) {
