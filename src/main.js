@@ -659,7 +659,11 @@ function syncCubeToggle() {
   cubeGroup.visible = cubeEnabled;
   if (!cubeEnabled) {
     cancelPainting();
-    setBrushVisible(false);
+    if (isPointerInCanvas) {
+      setBrushDotOnlyVisible(true);
+    } else {
+      setBrushDotOnlyVisible(false);
+    }
     setHoveredLabel(null);
   }
 }
@@ -709,6 +713,11 @@ function setBrushVisible(visible) {
   const opacity = visible ? "1" : "0";
   brushCircle.style.opacity = opacity;
   brushDot.style.opacity = opacity;
+}
+
+function setBrushDotOnlyVisible(visible) {
+  brushCircle.style.opacity = "0";
+  brushDot.style.opacity = visible ? "1" : "0";
 }
 
 function getBrushRadius() {
@@ -941,22 +950,24 @@ function computeBrushScreenRadius(hit) {
 }
 
 function updateBrushOverlay(clientX, clientY, hit) {
-  if (!cubeEnabled) {
-    setBrushVisible(false);
-    return;
-  }
   brushPointer.x = clientX;
   brushPointer.y = clientY;
   brushPointer.valid = true;
 
   if (!isPointerInCanvas) {
+    setBrushDotOnlyVisible(false);
+    return;
+  }
+
+  brushDot.setAttribute("cx", clientX);
+  brushDot.setAttribute("cy", clientY);
+  if (!cubeEnabled) {
+    setBrushDotOnlyVisible(true);
     return;
   }
 
   brushCircle.setAttribute("cx", clientX);
   brushCircle.setAttribute("cy", clientY);
-  brushDot.setAttribute("cx", clientX);
-  brushDot.setAttribute("cy", clientY);
   setBrushVisible(true);
 
   if (hit) {
@@ -966,7 +977,11 @@ function updateBrushOverlay(clientX, clientY, hit) {
 }
 
 function refreshBrushFromPointer() {
-  if (!cubeEnabled || !brushPointer.valid || !isPointerInCanvas) {
+  if (!brushPointer.valid || !isPointerInCanvas) {
+    return;
+  }
+  if (!cubeEnabled) {
+    updateBrushOverlay(brushPointer.x, brushPointer.y, null);
     return;
   }
   const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
@@ -1460,7 +1475,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   isPointerInCanvas = true;
   const { clientX, clientY } = event;
   if (!cubeEnabled) {
-    setBrushVisible(false);
+    updateBrushOverlay(clientX, clientY, null);
     if (!isPainting) {
       setHoveredLabel(null);
     }
@@ -1511,7 +1526,7 @@ renderer.domElement.addEventListener("pointerleave", () => {
   isPointerInCanvas = false;
   disableShiftOrbitSwap();
   disableShiftPanSwap();
-  setBrushVisible(false);
+  setBrushDotOnlyVisible(false);
   setHoveredLabel(null);
 });
 
@@ -1527,7 +1542,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
   if (!cubeEnabled) {
-    setBrushVisible(false);
+    if (isPointerInCanvas) {
+      setBrushDotOnlyVisible(true);
+    }
     setHoveredLabel(null);
     return;
   }
