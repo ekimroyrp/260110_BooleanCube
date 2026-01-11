@@ -377,6 +377,8 @@ let activeFace = "bottom";
 let wireframeEnabled = false;
 let projectionsEnabled = false;
 let cubeEnabled = true;
+let shiftOrbitSwap = false;
+let originalLeftButton = null;
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -428,6 +430,24 @@ function syncCubeToggle() {
   cubeOn.classList.toggle("active", cubeEnabled);
   cubeOff.classList.toggle("active", !cubeEnabled);
   cubeGroup.visible = cubeEnabled;
+}
+
+function enableShiftOrbitSwap() {
+  if (shiftOrbitSwap) {
+    return;
+  }
+  shiftOrbitSwap = true;
+  originalLeftButton = controls.mouseButtons.LEFT;
+  controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+}
+
+function disableShiftOrbitSwap() {
+  if (!shiftOrbitSwap) {
+    return;
+  }
+  controls.mouseButtons.LEFT = originalLeftButton ?? THREE.MOUSE.ROTATE;
+  originalLeftButton = null;
+  shiftOrbitSwap = false;
 }
 
 function updateBrushRadii() {
@@ -1075,8 +1095,19 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   lastUv = hit.uv;
 });
 
+renderer.domElement.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.button === 0 && event.shiftKey) {
+      enableShiftOrbitSwap();
+    }
+  },
+  { capture: true }
+);
+
 renderer.domElement.addEventListener("pointerleave", () => {
   isPointerInCanvas = false;
+  disableShiftOrbitSwap();
   setBrushVisible(false);
 });
 
@@ -1084,8 +1115,11 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (event.button !== 0 && event.button !== 2) {
     return;
   }
-
   isPointerInCanvas = true;
+  if (event.button === 0 && event.shiftKey) {
+    return;
+  }
+
   const hit = getIntersectionAt(event.clientX, event.clientY, faceMeshes);
   if (!hit || !hit.uv) {
     return;
@@ -1105,6 +1139,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 
 renderer.domElement.addEventListener("pointerup", (event) => {
   if (!isPainting) {
+    disableShiftOrbitSwap();
     return;
   }
 
@@ -1116,6 +1151,7 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   lastUv = null;
   controls.enabled = true;
   renderer.domElement.releasePointerCapture(event.pointerId);
+  disableShiftOrbitSwap();
   if (finishedMode === "erase" && finishedFace) {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
@@ -1131,6 +1167,7 @@ renderer.domElement.addEventListener("pointercancel", () => {
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
+  disableShiftOrbitSwap();
   if (finishedMode === "erase" && finishedFace) {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
