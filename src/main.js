@@ -73,6 +73,7 @@ const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
 const brushSizeInput = document.getElementById("brush-size");
 const wireframeToggle = document.getElementById("wireframe");
+const projectionsToggle = document.getElementById("projections");
 const rebuildButton = document.getElementById("rebuild");
 const clearButton = document.getElementById("clear-all");
 
@@ -81,6 +82,8 @@ const smoothValue = document.getElementById("smooth-value");
 const brushValue = document.getElementById("brush-value");
 const wfOn = document.getElementById("wf-on");
 const wfOff = document.getElementById("wf-off");
+const projOn = document.getElementById("proj-on");
+const projOff = document.getElementById("proj-off");
 const meshStats = document.getElementById("mesh-stats");
 const panel = document.getElementById("panel");
 const panelHandle = document.getElementById("panel-handle");
@@ -328,9 +331,23 @@ const wireframeMaterial = new THREE.MeshBasicMaterial({
   polygonOffsetFactor: -1,
   polygonOffsetUnits: -1
 });
+const projectionMaterial = new THREE.MeshStandardMaterial({
+  color: 0xf04a5b,
+  roughness: 0.4,
+  metalness: 0.05,
+  transparent: true,
+  opacity: 0.2,
+  depthWrite: false,
+  side: THREE.DoubleSide
+});
 
 let resultMesh = null;
 let wireframeMesh = null;
+const projectionMeshes = {
+  bottom: null,
+  back: null,
+  side: null
+};
 let rebuildTimer = null;
 
 const raycaster = new THREE.Raycaster();
@@ -355,6 +372,7 @@ let paintFace = null;
 let lastUv = null;
 let activeFace = "bottom";
 let wireframeEnabled = false;
+let projectionsEnabled = false;
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -388,6 +406,17 @@ function syncWireframeToggle() {
   if (wireframeMesh) {
     wireframeMesh.visible = wireframeEnabled;
   }
+}
+
+function syncProjectionsToggle() {
+  projectionsToggle.checked = !projectionsEnabled;
+  projOn.classList.toggle("active", projectionsEnabled);
+  projOff.classList.toggle("active", !projectionsEnabled);
+  Object.values(projectionMeshes).forEach((mesh) => {
+    if (mesh) {
+      mesh.visible = projectionsEnabled;
+    }
+  });
 }
 
 function updateBrushRadii() {
@@ -619,16 +648,26 @@ function buildMaskLookup(face, res) {
   return lookup;
 }
 
-function buildField(res) {
+function getMasks(res) {
+  return {
+    bottomMask: buildMaskLookup(faces.bottom, res),
+    backMask: buildMaskLookup(faces.back, res),
+    sideMask: buildMaskLookup(faces.side, res)
+  };
+}
+
+function buildField(res, masks) {
   const paddedRes = res + 1;
   const size = paddedRes + 1;
   const slice = size * size;
   const field = new Float32Array(size * size * size);
   const maskSize = res;
 
-  const bottomMask = buildMaskLookup(faces.bottom, res);
-  const backMask = buildMaskLookup(faces.back, res);
-  const sideMask = buildMaskLookup(faces.side, res);
+  const {
+    bottomMask,
+    backMask,
+    sideMask
+  } = masks || getMasks(res);
 
   for (let z = 0; z <= paddedRes; z++) {
     const zOffset = z * slice;
@@ -857,6 +896,77 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   };
 }
 
+function clearProjectionMeshes() {
+  Object.keys(projectionMeshes).forEach((key) => {
+    const mesh = projectionMeshes[key];
+    if (!mesh) {
+      return;
+    }
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    projectionMeshes[key] = null;
+  });
+}
+
+function updateProjectionMesh(faceName, mask, density, smoothIterations) {
+  const existing = projectionMeshes[faceName];
+  if (!mask) {
+    if (existing) {
+      scene.remove(existing);
+      existing.geometry.dispose();
+      projectionMeshes[faceName] = null;
+    }
+    return;
+  }
+
+  const masks = { bottomMask: null, backMask: null, sideMask: null };
+  if (faceName === "bottom") {
+    masks.bottomMask = mask;
+  } else if (faceName === "back") {
+    masks.backMask = mask;
+  } else if (faceName === "side") {
+    masks.sideMask = mask;
+  }
+
+  const { field, paddedRes } = buildField(density, masks);
+  const smoothedField = smoothField(field, paddedRes, smoothIterations);
+  const { geometry } = buildSurfaceGeometry(smoothedField, density, paddedRes);
+
+  if (!geometry) {
+    if (existing) {
+      scene.remove(existing);
+      existing.geometry.dispose();
+      projectionMeshes[faceName] = null;
+    }
+    return;
+  }
+
+  const scale = (cubeSize - meshInset * 2) / cubeSize;
+  if (!existing) {
+    const projectionMesh = new THREE.Mesh(geometry, projectionMaterial);
+    projectionMesh.visible = projectionsEnabled;
+    projectionMesh.renderOrder = 1;
+    projectionMesh.scale.setScalar(scale);
+    projectionMeshes[faceName] = projectionMesh;
+    scene.add(projectionMesh);
+  } else {
+    existing.geometry.dispose();
+    existing.geometry = geometry;
+    existing.visible = projectionsEnabled;
+    existing.scale.setScalar(scale);
+  }
+}
+
+function updateProjectionMeshes(density, smoothIterations, masks) {
+  if (!projectionsEnabled) {
+    clearProjectionMeshes();
+    return;
+  }
+  updateProjectionMesh("bottom", masks.bottomMask, density, smoothIterations);
+  updateProjectionMesh("back", masks.backMask, density, smoothIterations);
+  updateProjectionMesh("side", masks.sideMask, density, smoothIterations);
+}
+
 function rebuildMesh() {
   const density = Number(densityInput.value);
   const smoothIterations = Number(smoothingInput.value);
@@ -870,7 +980,8 @@ function rebuildMesh() {
   }
 
   meshStats.textContent = "Building...";
-  const { field: baseField, paddedRes } = buildField(density);
+  const masks = getMasks(density);
+  const { field: baseField, paddedRes } = buildField(density, masks);
   const field = smoothField(baseField, paddedRes, smoothIterations);
   const { geometry, triangles, vertices } = buildSurfaceGeometry(
     field,
@@ -911,6 +1022,7 @@ function rebuildMesh() {
   }
 
   updateMeshStats(Math.round(triangles), Math.round(vertices));
+  updateProjectionMeshes(density, smoothIterations, masks);
 }
 
 function clearResult() {
@@ -930,6 +1042,7 @@ function clearResult() {
   if (sharedGeometry) {
     sharedGeometry.dispose();
   }
+  clearProjectionMeshes();
 }
 
 renderer.domElement.addEventListener("pointermove", (event) => {
@@ -1051,6 +1164,12 @@ wireframeToggle.addEventListener("change", (event) => {
   syncWireframeToggle();
 });
 
+projectionsToggle.addEventListener("change", (event) => {
+  projectionsEnabled = !event.target.checked;
+  syncProjectionsToggle();
+  scheduleRebuild(0);
+});
+
 [panelHandle, panelHandleBottom].forEach((handle) => {
   handle.addEventListener("pointerdown", startPanelDrag);
 });
@@ -1074,6 +1193,7 @@ updateFaceGrids(getDensityValue());
 updateMeshStats(0);
 setActiveFace("bottom");
 syncWireframeToggle();
+syncProjectionsToggle();
 
 updateRendererSize();
 if ("ResizeObserver" in window) {
