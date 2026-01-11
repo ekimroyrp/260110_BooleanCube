@@ -14,7 +14,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const initialWidth = host.clientWidth || window.innerWidth;
 const initialHeight = host.clientHeight || window.innerHeight;
-renderer.setSize(initialWidth, initialHeight);
+renderer.setSize(initialWidth, initialHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
 host.appendChild(renderer.domElement);
@@ -1435,15 +1435,34 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
   event.preventDefault();
 });
 
-const updateRendererSize = () => {
+const pendingResize = {
+  width: initialWidth,
+  height: initialHeight,
+  dirty: false
+};
+
+const queueRendererResize = () => {
   syncPanelToWindowResize();
   const width = host.clientWidth || window.innerWidth;
   const height = host.clientHeight || window.innerHeight;
-  renderer.setSize(width, height);
-  camera.aspect = width / height;
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  pendingResize.width = width;
+  pendingResize.height = height;
+  pendingResize.dirty = true;
+};
+
+const applyRendererResize = () => {
+  if (!pendingResize.dirty) {
+    return;
+  }
+  pendingResize.dirty = false;
+  renderer.setSize(pendingResize.width, pendingResize.height, false);
+  camera.aspect = pendingResize.width / pendingResize.height;
   camera.updateProjectionMatrix();
-  brushOverlay.setAttribute("width", width);
-  brushOverlay.setAttribute("height", height);
+  brushOverlay.setAttribute("width", pendingResize.width);
+  brushOverlay.setAttribute("height", pendingResize.height);
   refreshBrushFromPointer();
 };
 
@@ -1609,15 +1628,16 @@ syncProjectionsToggle();
 syncCubeToggle();
 pushHistory();
 
-updateRendererSize();
+queueRendererResize();
 if ("ResizeObserver" in window) {
-  const resizeObserver = new ResizeObserver(updateRendererSize);
+  const resizeObserver = new ResizeObserver(queueRendererResize);
   resizeObserver.observe(host);
 } else {
-  window.addEventListener("resize", updateRendererSize);
+  window.addEventListener("resize", queueRendererResize);
 }
 
 function animate() {
+  applyRendererResize();
   if (cameraTween.active) {
     const elapsed = performance.now() - cameraTween.startTime;
     const t = Math.min(1, elapsed / cameraTween.duration);
