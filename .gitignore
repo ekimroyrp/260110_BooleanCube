@@ -1,5 +1,8 @@
-node_modules/
-dist/
-*.log
-.env
-.env.*
+# Dependencies
+node_modules
+
+# Logs and temp
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.DS_Store
