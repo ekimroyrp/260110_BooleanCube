@@ -52,7 +52,13 @@ const cameraTween = {
   startPos: new THREE.Vector3(),
   startTarget: new THREE.Vector3(),
   endPos: defaultCameraPosition.clone(),
-  endTarget: defaultCameraTarget.clone()
+  endTarget: defaultCameraTarget.clone(),
+  startDir: new THREE.Vector3(),
+  endDir: new THREE.Vector3(),
+  startRadius: 0,
+  endRadius: 0,
+  startQuat: new THREE.Quaternion(),
+  endQuat: new THREE.Quaternion()
 };
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
@@ -531,6 +537,9 @@ const basisMatrix = new THREE.Matrix3();
 const viewEndPos = new THREE.Vector3();
 const viewTarget = new THREE.Vector3();
 const viewDirection = new THREE.Vector3();
+const tweenDirection = new THREE.Vector3();
+const tweenQuat = new THREE.Quaternion();
+const refViewDirection = new THREE.Vector3(0, 0, 1);
 
 let isPainting = false;
 let paintMode = "draw";
@@ -581,6 +590,26 @@ function startCameraTween(endPos, endTarget) {
   cameraTween.startTarget.copy(controls.target);
   cameraTween.endPos.copy(endPos);
   cameraTween.endTarget.copy(endTarget);
+  cameraTween.startDir
+    .copy(cameraTween.startPos)
+    .sub(cameraTween.startTarget);
+  cameraTween.endDir.copy(cameraTween.endPos).sub(cameraTween.endTarget);
+  cameraTween.startRadius = cameraTween.startDir.length();
+  cameraTween.endRadius = cameraTween.endDir.length();
+  if (cameraTween.startRadius > 0) {
+    cameraTween.startDir.normalize();
+  }
+  if (cameraTween.endRadius > 0) {
+    cameraTween.endDir.normalize();
+  }
+  cameraTween.startQuat.setFromUnitVectors(
+    refViewDirection,
+    cameraTween.startDir
+  );
+  cameraTween.endQuat.setFromUnitVectors(
+    refViewDirection,
+    cameraTween.endDir
+  );
 }
 
 function focusCameraOnLabel(labelSprite) {
@@ -1757,12 +1786,21 @@ function animate() {
     const elapsed = performance.now() - cameraTween.startTime;
     const t = Math.min(1, elapsed / cameraTween.duration);
     const eased = t * t * (3 - 2 * t);
-    camera.position.lerpVectors(cameraTween.startPos, cameraTween.endPos, eased);
     controls.target.lerpVectors(
       cameraTween.startTarget,
       cameraTween.endTarget,
       eased
     );
+    tweenQuat.copy(cameraTween.startQuat).slerp(cameraTween.endQuat, eased);
+    tweenDirection.copy(refViewDirection).applyQuaternion(tweenQuat);
+    const radius = THREE.MathUtils.lerp(
+      cameraTween.startRadius,
+      cameraTween.endRadius,
+      eased
+    );
+    camera.position
+      .copy(controls.target)
+      .addScaledVector(tweenDirection, radius);
     if (t >= 1) {
       cameraTween.active = false;
     }
