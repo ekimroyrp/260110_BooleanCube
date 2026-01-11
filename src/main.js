@@ -88,6 +88,9 @@ const projectionsToggle = document.getElementById("projections");
 const cubeToggle = document.getElementById("cube-toggle");
 const rebuildButton = document.getElementById("rebuild");
 const clearButton = document.getElementById("clear-all");
+const undoButton = document.getElementById("undo-action");
+const redoButton = document.getElementById("redo-action");
+const historyLimit = 50;
 
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
@@ -385,6 +388,7 @@ let paintMode = "draw";
 let paintFace = null;
 let lastUv = null;
 let activeFace = "bottom";
+let strokeModified = false;
 let wireframeEnabled = false;
 let projectionsEnabled = false;
 let cubeEnabled = true;
@@ -392,6 +396,8 @@ let shiftOrbitSwap = false;
 let originalLeftButton = null;
 let shiftPanSwap = false;
 let originalRightButton = null;
+const history = [];
+const redoStack = [];
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -557,6 +563,7 @@ function paintStroke(face, fromUv, toUv, mode) {
     face.hasPaint = true;
   }
   refreshFaceDisplay(face);
+  strokeModified = true;
 }
 
 function hasAnyPaint(face) {
@@ -592,6 +599,48 @@ function resetFace(face) {
   face.maskCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
   face.hasPaint = false;
   refreshFaceDisplay(face);
+}
+
+function snapshotFace(face) {
+  return {
+    data: face.maskCtx.getImageData(0, 0, faceCanvasSize, faceCanvasSize),
+    hasPaint: face.hasPaint
+  };
+}
+
+function snapshotMasks() {
+  return {
+    bottom: snapshotFace(faces.bottom),
+    back: snapshotFace(faces.back),
+    side: snapshotFace(faces.side)
+  };
+}
+
+function restoreFace(face, snapshot) {
+  if (!snapshot) {
+    return;
+  }
+  face.maskCtx.putImageData(snapshot.data, 0, 0);
+  face.hasPaint = snapshot.hasPaint;
+  refreshFaceDisplay(face);
+}
+
+function restoreSnapshot(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+  restoreFace(faces.bottom, snapshot.bottom);
+  restoreFace(faces.back, snapshot.back);
+  restoreFace(faces.side, snapshot.side);
+  scheduleRebuild(0);
+}
+
+function pushHistory() {
+  if (history.length >= historyLimit) {
+    history.shift();
+  }
+  history.push(snapshotMasks());
+  redoStack.length = 0;
 }
 
 function updateFaceGrids(density) {
@@ -1184,6 +1233,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   updateBrushOverlay(event.clientX, event.clientY, hit);
   event.preventDefault();
   isPainting = true;
+  strokeModified = false;
   paintMode = event.button === 2 ? "erase" : "draw";
   paintFace = hit.object.userData.face;
   lastUv = hit.uv;
@@ -1214,6 +1264,10 @@ renderer.domElement.addEventListener("pointerup", (event) => {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
   }
+  if (strokeModified) {
+    pushHistory();
+    strokeModified = false;
+  }
   scheduleRebuild(120);
 });
 
@@ -1230,6 +1284,10 @@ renderer.domElement.addEventListener("pointercancel", () => {
   if (finishedMode === "erase" && finishedFace) {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
+  }
+  if (strokeModified) {
+    pushHistory();
+    strokeModified = false;
   }
   scheduleRebuild(120);
 });
@@ -1292,9 +1350,41 @@ window.addEventListener("pointercancel", stopPanelDrag);
 rebuildButton.addEventListener("click", () => resetCamera());
 
 clearButton.addEventListener("click", () => {
+  const hadPaint =
+    faces.bottom.hasPaint || faces.back.hasPaint || faces.side.hasPaint;
   Object.values(faces).forEach((face) => resetFace(face));
   clearResult();
   updateMeshStats(0, 0);
+  if (hadPaint) {
+    pushHistory();
+  }
+});
+
+undoButton.addEventListener("click", () => {
+  if (history.length <= 1) {
+    return;
+  }
+  const current = history.pop();
+  if (current) {
+    redoStack.push(current);
+  }
+  const snapshot = history[history.length - 1];
+  restoreSnapshot(snapshot);
+});
+
+redoButton.addEventListener("click", () => {
+  if (!redoStack.length) {
+    return;
+  }
+  const snapshot = redoStack.pop();
+  if (!snapshot) {
+    return;
+  }
+  if (history.length >= historyLimit) {
+    history.shift();
+  }
+  history.push(snapshot);
+  restoreSnapshot(snapshot);
 });
 
 updateRange(densityInput, densityValue);
@@ -1307,6 +1397,7 @@ setActiveFace("bottom");
 syncWireframeToggle();
 syncProjectionsToggle();
 syncCubeToggle();
+pushHistory();
 
 updateRendererSize();
 if ("ResizeObserver" in window) {

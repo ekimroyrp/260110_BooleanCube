@@ -6,6 +6,7 @@
 - Paintable bottom/back/side faces with brush overlay
 - Silhouette intersection to generate a volume mesh (marching cubes)
 - Resolution, brush size, smoothing, wireframe, projection, and cube toggles in-panel
+- Undo/redo history for brush strokes and clear actions
 - Orbit/pan camera controls with live UI feedback
 
 ## Getting Started
@@ -21,6 +22,8 @@
 - Mouse wheel: zoom
 - Center resets the camera view
 - Clear resets the drawings and mesh
+- Undo reverts the last stroke or clear
+- Redo reapplies the last undone change
 - Wireframe toggle shows/hides the triangulated overlay
 - Projections toggle shows per-face projection volumes
 - Cube toggle shows/hides the cube faces, grids, and labels
