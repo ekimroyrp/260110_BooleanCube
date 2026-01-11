@@ -71,7 +71,6 @@ let suppressOrthoExit = false;
 const orthoLockDirection = new THREE.Vector3();
 const orthoLockTarget = new THREE.Vector3();
 const orthoExitDotThreshold = 0.999;
-const orthoExitTargetThresholdSq = 1e-4;
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
@@ -652,8 +651,7 @@ function maybeExitOrtho() {
   }
   orthoCurrentDirection.copy(camera.position).sub(controls.target).normalize();
   const dot = orthoCurrentDirection.dot(orthoLockDirection);
-  const targetDelta = controls.target.distanceToSquared(orthoLockTarget);
-  if (dot < orthoExitDotThreshold || targetDelta > orthoExitTargetThresholdSq) {
+  if (dot < orthoExitDotThreshold) {
     exitOrtho();
   }
 }
