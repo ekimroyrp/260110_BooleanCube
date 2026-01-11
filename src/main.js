@@ -1382,18 +1382,11 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   };
 }
 
-function buildVoxelGeometry(res, masks, mode = booleanMode) {
-  const {
-    bottomMask,
-    backMask,
-    sideMask
-  } = masks || getMasks(res);
-  const activeMaskCount =
-    (bottomMask ? 1 : 0) + (backMask ? 1 : 0) + (sideMask ? 1 : 0);
-  if (activeMaskCount === 0) {
-    return { geometry: null, triangles: 0, vertices: 0 };
-  }
-
+function buildVoxelGeometry(res, masks, smoothIterations, mode = booleanMode) {
+  const { field, paddedRes } = buildField(res, masks, mode);
+  const smoothedField = smoothField(field, paddedRes, smoothIterations);
+  const size = paddedRes + 1;
+  const slice = size * size;
   const step = cubeSize / res;
   const positions = [];
 
@@ -1401,24 +1394,20 @@ function buildVoxelGeometry(res, masks, mode = booleanMode) {
     if (x < 0 || x >= res || y < 0 || y >= res || z < 0 || z >= res) {
       return false;
     }
-    const invZ = res - 1 - z;
-    let count = 0;
-    if (bottomMask && bottomMask[x + invZ * res]) {
-      count += 1;
-    }
-    if (backMask && backMask[x + y * res]) {
-      count += 1;
-    }
-    if (sideMask && sideMask[invZ + y * res]) {
-      count += 1;
-    }
-    if (mode === "union") {
-      return count > 0;
-    }
-    if (mode === "difference") {
-      return count === 1;
-    }
-    return count === activeMaskCount;
+    const xi = x + 1;
+    const yi = y + 1;
+    const zi = z + 1;
+    const idx = xi + yi * size + zi * slice;
+    const sum =
+      smoothedField[idx] +
+      smoothedField[idx + 1] +
+      smoothedField[idx + 1 + size] +
+      smoothedField[idx + size] +
+      smoothedField[idx + slice] +
+      smoothedField[idx + slice + 1] +
+      smoothedField[idx + slice + 1 + size] +
+      smoothedField[idx + slice + size];
+    return sum / 8 < 0.5;
   };
 
   const pushQuad = (
@@ -1547,7 +1536,7 @@ function updateProjectionMesh(faceName, mask, density, smoothIterations) {
     const smoothedField = smoothField(field, paddedRes, smoothIterations);
     ({ geometry } = buildSurfaceGeometry(smoothedField, density, paddedRes));
   } else {
-    ({ geometry } = buildVoxelGeometry(density, masks));
+    ({ geometry } = buildVoxelGeometry(density, masks, smoothIterations));
   }
 
   if (!geometry) {
@@ -1587,7 +1576,7 @@ function updateProjectionMeshes(density, smoothIterations, masks) {
 
 function rebuildMesh() {
   const density = Number(densityInput.value);
-  const smoothIterations = angleEnabled ? Number(smoothingInput.value) : 0;
+  const smoothIterations = Number(smoothingInput.value);
 
   const anyPaint =
     faces.bottom.hasPaint || faces.back.hasPaint || faces.side.hasPaint;
@@ -1611,7 +1600,11 @@ function rebuildMesh() {
       paddedRes
     ));
   } else {
-    ({ geometry, triangles, vertices } = buildVoxelGeometry(density, masks));
+    ({ geometry, triangles, vertices } = buildVoxelGeometry(
+      density,
+      masks,
+      smoothIterations
+    ));
   }
 
   if (!geometry) {
