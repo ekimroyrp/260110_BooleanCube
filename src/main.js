@@ -119,6 +119,12 @@ const booleanOptionsEls = Array.from(
 let isPanelDragging = false;
 let panelDragStart = { x: 0, y: 0 };
 let panelPointerStart = { x: 0, y: 0 };
+const windowMetrics = {
+  width: window.innerWidth,
+  height: window.innerHeight,
+  screenX: typeof window.screenX === "number" ? window.screenX : window.screenLeft ?? 0,
+  screenY: typeof window.screenY === "number" ? window.screenY : window.screenTop ?? 0
+};
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -223,6 +229,44 @@ function stopPanelDrag(event) {
   }
   isPanelDragging = false;
   panel.releasePointerCapture(event.pointerId);
+}
+
+function syncPanelToWindowResize() {
+  const currentWidth = window.innerWidth;
+  const currentHeight = window.innerHeight;
+  const currentScreenX =
+    typeof window.screenX === "number" ? window.screenX : window.screenLeft ?? 0;
+  const currentScreenY =
+    typeof window.screenY === "number" ? window.screenY : window.screenTop ?? 0;
+  const deltaWidth = currentWidth - windowMetrics.width;
+  const deltaHeight = currentHeight - windowMetrics.height;
+  const leftEdgeMoved = currentScreenX !== windowMetrics.screenX;
+  const topEdgeMoved = currentScreenY !== windowMetrics.screenY;
+
+  if (panel.style.left) {
+    const rect = panel.getBoundingClientRect();
+    let nextLeft = rect.left;
+    let nextTop = rect.top;
+    if (!leftEdgeMoved && deltaWidth !== 0) {
+      nextLeft += deltaWidth;
+    }
+    if (!topEdgeMoved && deltaHeight !== 0) {
+      nextTop += deltaHeight;
+    }
+    const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
+    const maxX = Math.max(8, currentWidth - width - 8);
+    const maxY = Math.max(8, currentHeight - height - 8);
+    nextLeft = Math.min(Math.max(8, nextLeft), maxX);
+    nextTop = Math.min(Math.max(8, nextTop), maxY);
+    panel.style.left = `${nextLeft}px`;
+    panel.style.top = `${nextTop}px`;
+  }
+
+  windowMetrics.width = currentWidth;
+  windowMetrics.height = currentHeight;
+  windowMetrics.screenX = currentScreenX;
+  windowMetrics.screenY = currentScreenY;
 }
 
 function getDensityValue() {
@@ -1402,6 +1446,7 @@ renderer.domElement.addEventListener("contextmenu", (event) => {
 });
 
 const updateRendererSize = () => {
+  syncPanelToWindowResize();
   const width = host.clientWidth || window.innerWidth;
   const height = host.clientHeight || window.innerHeight;
   renderer.setSize(width, height);
