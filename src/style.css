@@ -123,6 +123,8 @@ body {
   padding: 12px 16px 10px;
   border-radius: 18px;
   background: linear-gradient(145deg, #181b22, #111218);
+  transform: scale(0.9);
+  transform-origin: top right;
   box-shadow:
     16px 16px 30px rgba(0, 0, 0, 0.45),
     -12px -12px 26px rgba(40, 42, 48, 0.15),

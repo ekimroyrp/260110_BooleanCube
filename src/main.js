@@ -191,13 +191,29 @@ function updateMeshStats(faces, vertices) {
   meshStats.textContent = `Faces: ${faceCount} | Vertices: ${vertexCount}`;
 }
 
+function getPanelScale(rect) {
+  const width = panel.offsetWidth;
+  if (!width) {
+    return 1;
+  }
+  const bounds = rect ?? panel.getBoundingClientRect();
+  return bounds.width / width;
+}
+
+function getPanelLayoutLeft(rect, scale) {
+  const width = panel.offsetWidth || rect.width;
+  return rect.left - (1 - scale) * width;
+}
+
 function startPanelDrag(event) {
   if (event.button !== 0 && event.pointerType === "mouse") {
     return;
   }
   const rect = panel.getBoundingClientRect();
+  const scale = getPanelScale(rect);
+  const layoutLeft = getPanelLayoutLeft(rect, scale);
   isPanelDragging = true;
-  panelDragStart = { x: rect.left, y: rect.top };
+  panelDragStart = { x: layoutLeft, y: rect.top };
   panelPointerStart = { x: event.clientX, y: event.clientY };
   panel.style.left = `${panelDragStart.x}px`;
   panel.style.top = `${panelDragStart.y}px`;
@@ -241,7 +257,8 @@ function syncPanelToWindowResize() {
 
   if (panel.style.left) {
     const rect = panel.getBoundingClientRect();
-    let nextLeft = rect.left;
+    const scale = getPanelScale(rect);
+    let nextLeft = getPanelLayoutLeft(rect, scale);
     let nextTop = rect.top;
     if (!leftEdgeMoved && deltaWidth !== 0) {
       nextLeft += deltaWidth;
