@@ -44,6 +44,15 @@ controls.addEventListener("change", () => {
 });
 const defaultCameraPosition = camera.position.clone();
 const defaultCameraTarget = controls.target.clone();
+const cameraTween = {
+  active: false,
+  startTime: 0,
+  duration: 600,
+  startPos: new THREE.Vector3(),
+  startTarget: new THREE.Vector3(),
+  endPos: defaultCameraPosition.clone(),
+  endTarget: defaultCameraTarget.clone()
+};
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
@@ -410,9 +419,12 @@ function setActiveFace(face) {
 }
 
 function resetCamera() {
-  controls.target.copy(defaultCameraTarget);
-  camera.position.copy(defaultCameraPosition);
-  controls.update();
+  cameraTween.active = true;
+  cameraTween.startTime = performance.now();
+  cameraTween.startPos.copy(camera.position);
+  cameraTween.startTarget.copy(controls.target);
+  cameraTween.endPos.copy(defaultCameraPosition);
+  cameraTween.endTarget.copy(defaultCameraTarget);
 }
 
 function syncWireframeToggle() {
@@ -1305,6 +1317,22 @@ if ("ResizeObserver" in window) {
 }
 
 function animate() {
+  if (cameraTween.active) {
+    const elapsed = performance.now() - cameraTween.startTime;
+    const t = Math.min(1, elapsed / cameraTween.duration);
+    const eased = t * t * (3 - 2 * t);
+    camera.position.lerpVectors(cameraTween.startPos, cameraTween.endPos, eased);
+    controls.target.lerpVectors(
+      cameraTween.startTarget,
+      cameraTween.endTarget,
+      eased
+    );
+    controls.update();
+    refreshBrushFromPointer();
+    if (t >= 1) {
+      cameraTween.active = false;
+    }
+  }
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
