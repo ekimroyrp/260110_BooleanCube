@@ -1480,7 +1480,7 @@ function buildVoxelGeometry(res, masks, mode = booleanMode) {
           pushQuad(x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1);
         }
         if (!isInside(x, y + 1, z)) {
-          pushQuad(x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1);
+          pushQuad(x0, y1, z0, x0, y1, z1, x1, y1, z1, x1, y1, z0);
         }
         if (!isInside(x, y, z - 1)) {
           pushQuad(x0, y0, z0, x0, y1, z0, x1, y1, z0, x1, y0, z0);
