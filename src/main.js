@@ -81,8 +81,6 @@ const panel = document.getElementById("panel");
 const panelHandle = document.getElementById("panel-handle");
 const panelHandleBottom = document.getElementById("panel-handle-bottom");
 
-const faceButtons = Array.from(document.querySelectorAll("[data-face]"));
-
 let isPanelDragging = false;
 let panelDragStart = { x: 0, y: 0 };
 let panelPointerStart = { x: 0, y: 0 };
@@ -345,10 +343,6 @@ const EDGE_CONNECTIONS = [
 
 function setActiveFace(face) {
   activeFace = face;
-  faceButtons.forEach((button) => {
-    button.classList.toggle("active", button.dataset.face === face);
-  });
-
   Object.values(faces).forEach((item) => {
     const isActive = item.name === face;
     item.mesh.material.emissive.set(isActive ? 0x2a0b12 : 0x171a22);
@@ -916,10 +910,6 @@ const updateRendererSize = () => {
       updateBrushRadii();
     }
   });
-});
-
-faceButtons.forEach((button) => {
-  button.addEventListener("click", () => setActiveFace(button.dataset.face));
 });
 
 [panelHandle, panelHandleBottom].forEach((handle) => {
