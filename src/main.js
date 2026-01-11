@@ -545,6 +545,7 @@ let isPainting = false;
 let paintMode = "draw";
 let paintFace = null;
 let lastUv = null;
+let paintPointerId = null;
 let activeFace = "bottom";
 let strokeModified = false;
 let booleanMode = "intersect";
@@ -657,6 +658,8 @@ function syncCubeToggle() {
   cubeOff.classList.toggle("active", !cubeEnabled);
   cubeGroup.visible = cubeEnabled;
   if (!cubeEnabled) {
+    cancelPainting();
+    setBrushVisible(false);
     setHoveredLabel(null);
   }
 }
@@ -802,6 +805,21 @@ function resetFace(face) {
   refreshFaceDisplay(face);
 }
 
+function cancelPainting() {
+  if (!isPainting) {
+    return;
+  }
+  isPainting = false;
+  paintMode = "draw";
+  paintFace = null;
+  lastUv = null;
+  controls.enabled = true;
+  if (paintPointerId !== null) {
+    renderer.domElement.releasePointerCapture(paintPointerId);
+    paintPointerId = null;
+  }
+}
+
 function setHoveredLabel(sprite) {
   if (hoveredLabel === sprite) {
     return;
@@ -816,7 +834,7 @@ function setHoveredLabel(sprite) {
 }
 
 function updateLabelHover(clientX, clientY) {
-  if (!labelSprites.length) {
+  if (!cubeEnabled || !labelSprites.length) {
     return;
   }
   const hit = getIntersectionAt(clientX, clientY, labelSprites);
@@ -923,6 +941,10 @@ function computeBrushScreenRadius(hit) {
 }
 
 function updateBrushOverlay(clientX, clientY, hit) {
+  if (!cubeEnabled) {
+    setBrushVisible(false);
+    return;
+  }
   brushPointer.x = clientX;
   brushPointer.y = clientY;
   brushPointer.valid = true;
@@ -944,7 +966,7 @@ function updateBrushOverlay(clientX, clientY, hit) {
 }
 
 function refreshBrushFromPointer() {
-  if (!brushPointer.valid || !isPointerInCanvas) {
+  if (!cubeEnabled || !brushPointer.valid || !isPointerInCanvas) {
     return;
   }
   const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
@@ -1437,6 +1459,13 @@ function exportScreenshot() {
 renderer.domElement.addEventListener("pointermove", (event) => {
   isPointerInCanvas = true;
   const { clientX, clientY } = event;
+  if (!cubeEnabled) {
+    setBrushVisible(false);
+    if (!isPainting) {
+      setHoveredLabel(null);
+    }
+    return;
+  }
   const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
   const hit = getIntersectionAt(clientX, clientY, hitTargets);
   updateBrushOverlay(clientX, clientY, hit);
@@ -1497,6 +1526,11 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (event.button === 2 && event.shiftKey) {
     return;
   }
+  if (!cubeEnabled) {
+    setBrushVisible(false);
+    setHoveredLabel(null);
+    return;
+  }
 
   if (event.button === 0) {
     const labelHit = getIntersectionAt(event.clientX, event.clientY, labelSprites);
@@ -1523,7 +1557,8 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   setActiveFace(paintFace.name);
   paintStroke(paintFace, hit.uv, hit.uv, paintMode);
   controls.enabled = false;
-  renderer.domElement.setPointerCapture(event.pointerId);
+  paintPointerId = event.pointerId;
+  renderer.domElement.setPointerCapture(paintPointerId);
 });
 
 renderer.domElement.addEventListener("pointerup", (event) => {
@@ -1540,7 +1575,10 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
-  renderer.domElement.releasePointerCapture(event.pointerId);
+  if (paintPointerId !== null) {
+    renderer.domElement.releasePointerCapture(paintPointerId);
+    paintPointerId = null;
+  }
   disableShiftOrbitSwap();
   disableShiftPanSwap();
   if (finishedMode === "erase" && finishedFace) {
@@ -1562,6 +1600,10 @@ renderer.domElement.addEventListener("pointercancel", () => {
   paintFace = null;
   lastUv = null;
   controls.enabled = true;
+  if (paintPointerId !== null) {
+    renderer.domElement.releasePointerCapture(paintPointerId);
+    paintPointerId = null;
+  }
   disableShiftOrbitSwap();
   disableShiftPanSwap();
   if (finishedMode === "erase" && finishedFace) {
