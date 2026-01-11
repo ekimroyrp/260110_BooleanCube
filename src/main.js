@@ -39,6 +39,9 @@ controls.touches = {
   TWO: THREE.TOUCH.DOLLY_PAN
 };
 controls.update();
+controls.addEventListener("change", () => {
+  refreshBrushFromPointer();
+});
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
@@ -318,6 +321,19 @@ let rebuildTimer = null;
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const brushPointer = { x: 0, y: 0, valid: false };
+let brushRadiusScreen = 12;
+let isPointerInCanvas = false;
+
+const axisX = new THREE.Vector3();
+const axisY = new THREE.Vector3();
+const worldCenter = new THREE.Vector3();
+const worldU = new THREE.Vector3();
+const worldV = new THREE.Vector3();
+const screenCenter = new THREE.Vector3();
+const screenU = new THREE.Vector3();
+const screenV = new THREE.Vector3();
+const basisMatrix = new THREE.Matrix3();
 
 let isPainting = false;
 let paintMode = "draw";
@@ -351,10 +367,8 @@ function setActiveFace(face) {
 }
 
 function updateBrushRadii() {
-  const size = Number(brushSizeInput.value);
-  const radius = 6 + (size / 100) * 40;
-  brushCircle.setAttribute("r", radius);
   brushDot.setAttribute("r", 2.5);
+  refreshBrushFromPointer();
 }
 
 function setBrushVisible(visible) {
@@ -366,6 +380,10 @@ function setBrushVisible(visible) {
 function getBrushRadius() {
   const size = Number(brushSizeInput.value);
   return 3 + (size / 100) * (faceCanvasSize * 0.13);
+}
+
+function getBrushWorldRadius() {
+  return (getBrushRadius() / faceCanvasSize) * cubeSize;
 }
 
 function uvToCanvas(uv) {
@@ -459,14 +477,84 @@ function updateFaceGrids(density) {
   });
 }
 
-function getIntersection(event, targets) {
+function getIntersectionAt(clientX, clientY, targets) {
   const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const hitTargets = Array.isArray(targets) ? targets : [targets];
   const hits = raycaster.intersectObjects(hitTargets, false);
   return hits.length ? hits[0] : null;
+}
+
+function projectToScreen(vec, out) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  out.copy(vec).project(camera);
+  out.x = (out.x * 0.5 + 0.5) * rect.width + rect.left;
+  out.y = (-out.y * 0.5 + 0.5) * rect.height + rect.top;
+  return out;
+}
+
+function computeBrushScreenRadius(hit) {
+  if (!hit || !hit.object) {
+    return brushRadiusScreen;
+  }
+
+  const mesh = hit.object;
+  mesh.updateMatrixWorld(true);
+  basisMatrix.setFromMatrix4(mesh.matrixWorld);
+  axisX.set(1, 0, 0).applyMatrix3(basisMatrix).normalize();
+  axisY.set(0, 1, 0).applyMatrix3(basisMatrix).normalize();
+
+  const worldRadius = getBrushWorldRadius();
+  worldCenter.copy(hit.point);
+  worldU.copy(hit.point).addScaledVector(axisX, worldRadius);
+  worldV.copy(hit.point).addScaledVector(axisY, worldRadius);
+
+  projectToScreen(worldCenter, screenCenter);
+  projectToScreen(worldU, screenU);
+  projectToScreen(worldV, screenV);
+
+  const radiusU = Math.hypot(
+    screenU.x - screenCenter.x,
+    screenU.y - screenCenter.y
+  );
+  const radiusV = Math.hypot(
+    screenV.x - screenCenter.x,
+    screenV.y - screenCenter.y
+  );
+
+  return Math.max(2, (radiusU + radiusV) * 0.5);
+}
+
+function updateBrushOverlay(clientX, clientY, hit) {
+  brushPointer.x = clientX;
+  brushPointer.y = clientY;
+  brushPointer.valid = true;
+
+  if (!isPointerInCanvas) {
+    return;
+  }
+
+  brushCircle.setAttribute("cx", clientX);
+  brushCircle.setAttribute("cy", clientY);
+  brushDot.setAttribute("cx", clientX);
+  brushDot.setAttribute("cy", clientY);
+  setBrushVisible(true);
+
+  if (hit) {
+    brushRadiusScreen = computeBrushScreenRadius(hit);
+  }
+  brushCircle.setAttribute("r", brushRadiusScreen);
+}
+
+function refreshBrushFromPointer() {
+  if (!brushPointer.valid || !isPointerInCanvas) {
+    return;
+  }
+  const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
+  const hit = getIntersectionAt(brushPointer.x, brushPointer.y, hitTargets);
+  updateBrushOverlay(brushPointer.x, brushPointer.y, hit);
 }
 
 function scheduleRebuild(delay = 100) {
@@ -796,18 +884,16 @@ function clearResult() {
 }
 
 renderer.domElement.addEventListener("pointermove", (event) => {
+  isPointerInCanvas = true;
   const { clientX, clientY } = event;
-  brushCircle.setAttribute("cx", clientX);
-  brushCircle.setAttribute("cy", clientY);
-  brushDot.setAttribute("cx", clientX);
-  brushDot.setAttribute("cy", clientY);
-  setBrushVisible(true);
+  const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
+  const hit = getIntersectionAt(clientX, clientY, hitTargets);
+  updateBrushOverlay(clientX, clientY, hit);
 
   if (!isPainting) {
     return;
   }
 
-  const hit = getIntersection(event, paintFace.mesh);
   if (!hit || !hit.uv) {
     return;
   }
@@ -817,6 +903,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
 });
 
 renderer.domElement.addEventListener("pointerleave", () => {
+  isPointerInCanvas = false;
   setBrushVisible(false);
 });
 
@@ -825,11 +912,13 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
-  const hit = getIntersection(event, faceMeshes);
+  isPointerInCanvas = true;
+  const hit = getIntersectionAt(event.clientX, event.clientY, faceMeshes);
   if (!hit || !hit.uv) {
     return;
   }
 
+  updateBrushOverlay(event.clientX, event.clientY, hit);
   event.preventDefault();
   isPainting = true;
   paintMode = event.button === 2 ? "erase" : "draw";
@@ -888,6 +977,7 @@ const updateRendererSize = () => {
   camera.updateProjectionMatrix();
   brushOverlay.setAttribute("width", width);
   brushOverlay.setAttribute("height", height);
+  refreshBrushFromPointer();
 };
 
 [densityInput, smoothingInput, brushSizeInput].forEach((input) => {
