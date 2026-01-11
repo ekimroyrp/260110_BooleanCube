@@ -1,6 +1,7 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 import {
   edgeTable as EDGE_TABLE,
   triTable as TRI_TABLE
@@ -90,6 +91,8 @@ const rebuildButton = document.getElementById("rebuild");
 const clearButton = document.getElementById("clear-all");
 const undoButton = document.getElementById("undo-action");
 const redoButton = document.getElementById("redo-action");
+const screenshotButton = document.getElementById("screenshot-btn");
+const exportButton = document.getElementById("export-obj");
 const historyLimit = 50;
 
 const densityValue = document.getElementById("density-value");
@@ -1165,6 +1168,44 @@ function clearResult() {
   clearProjectionMeshes();
 }
 
+function downloadBlob(data, filename, type) {
+  const blob = new Blob([data], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportOBJ() {
+  if (!resultMesh || !resultMesh.geometry) {
+    return;
+  }
+  const exporter = new OBJExporter();
+  resultMesh.updateMatrixWorld(true);
+  const objData = exporter.parse(resultMesh);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadBlob(objData, `booleancube-${stamp}.obj`, "text/plain");
+}
+
+function exportScreenshot() {
+  if (!renderer || !renderer.domElement) {
+    return;
+  }
+  renderer.render(scene, camera);
+  const dataURL = renderer.domElement.toDataURL("image/png");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const link = document.createElement("a");
+  link.download = `booleancube-${stamp}.png`;
+  link.href = dataURL;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 renderer.domElement.addEventListener("pointermove", (event) => {
   isPointerInCanvas = true;
   const { clientX, clientY } = event;
@@ -1386,6 +1427,9 @@ redoButton.addEventListener("click", () => {
   history.push(snapshot);
   restoreSnapshot(snapshot);
 });
+
+screenshotButton.addEventListener("click", exportScreenshot);
+exportButton.addEventListener("click", exportOBJ);
 
 updateRange(densityInput, densityValue);
 updateRange(smoothingInput, smoothValue);

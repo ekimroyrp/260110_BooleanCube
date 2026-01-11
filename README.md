@@ -24,6 +24,8 @@
 - Clear resets the drawings and mesh
 - Undo reverts the last stroke or clear
 - Redo reapplies the last undone change
+- Screenshot saves a PNG of the canvas view
+- Export saves the boolean mesh as an OBJ
 - Wireframe toggle shows/hides the triangulated overlay
 - Projections toggle shows per-face projection volumes
 - Cube toggle shows/hides the cube faces, grids, and labels
