@@ -76,6 +76,7 @@ const labelEdgeOffset = 0.06;
 const labelNormalOffset = 0.06;
 const labelDefaultColor = "rgba(255,255,255,0.65)";
 const labelHoverColor = "#ff6a83";
+const viewPoleOffset = 0.001;
 const paintCanvas = document.createElement("canvas");
 paintCanvas.width = faceCanvasSize;
 paintCanvas.height = faceCanvasSize;
@@ -529,6 +530,7 @@ const screenV = new THREE.Vector3();
 const basisMatrix = new THREE.Matrix3();
 const viewEndPos = new THREE.Vector3();
 const viewTarget = new THREE.Vector3();
+const viewDirection = new THREE.Vector3();
 
 let isPainting = false;
 let paintMode = "draw";
@@ -585,10 +587,14 @@ function focusCameraOnLabel(labelSprite) {
   if (!labelSprite || !labelSprite.userData?.viewDirection) {
     return;
   }
-  const direction = labelSprite.userData.viewDirection;
+  viewDirection.copy(labelSprite.userData.viewDirection);
+  if (viewDirection.y < -0.9) {
+    viewDirection.z += viewPoleOffset;
+    viewDirection.normalize();
+  }
   const distance = camera.position.distanceTo(controls.target);
   viewTarget.copy(defaultCameraTarget);
-  viewEndPos.copy(viewTarget).addScaledVector(direction, distance);
+  viewEndPos.copy(viewTarget).addScaledVector(viewDirection, distance);
   startCameraTween(viewEndPos, viewTarget);
 }
 
@@ -1757,13 +1763,14 @@ function animate() {
       cameraTween.endTarget,
       eased
     );
-    controls.update();
-    refreshBrushFromPointer();
     if (t >= 1) {
       cameraTween.active = false;
     }
   }
   controls.update();
+  if (cameraTween.active) {
+    refreshBrushFromPointer();
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
