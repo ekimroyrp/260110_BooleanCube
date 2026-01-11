@@ -74,6 +74,7 @@ const smoothingInput = document.getElementById("smoothing");
 const brushSizeInput = document.getElementById("brush-size");
 const wireframeToggle = document.getElementById("wireframe");
 const projectionsToggle = document.getElementById("projections");
+const cubeToggle = document.getElementById("cube-toggle");
 const rebuildButton = document.getElementById("rebuild");
 const clearButton = document.getElementById("clear-all");
 
@@ -84,6 +85,8 @@ const wfOn = document.getElementById("wf-on");
 const wfOff = document.getElementById("wf-off");
 const projOn = document.getElementById("proj-on");
 const projOff = document.getElementById("proj-off");
+const cubeOn = document.getElementById("cube-on");
+const cubeOff = document.getElementById("cube-off");
 const meshStats = document.getElementById("mesh-stats");
 const panel = document.getElementById("panel");
 const panelHandle = document.getElementById("panel-handle");
@@ -294,14 +297,11 @@ const faces = {
 
 faces.bottom.mesh.rotation.x = -Math.PI / 2;
 faces.bottom.mesh.position.y = -half;
-scene.add(faces.bottom.mesh);
 
 faces.back.mesh.position.z = -half;
-scene.add(faces.back.mesh);
 
 faces.side.mesh.rotation.y = Math.PI / 2;
 faces.side.mesh.position.x = -half;
-scene.add(faces.side.mesh);
 
 const faceMeshes = Object.values(faces).map((face) => face.mesh);
 
@@ -313,7 +313,10 @@ const bounds = new THREE.LineSegments(
     opacity: 0.6
   })
 );
-scene.add(bounds);
+const cubeGroup = new THREE.Group();
+cubeGroup.add(bounds);
+faceMeshes.forEach((mesh) => cubeGroup.add(mesh));
+scene.add(cubeGroup);
 
 const resultMaterial = new THREE.MeshStandardMaterial({
   color: 0xd6d9e0,
@@ -373,6 +376,7 @@ let lastUv = null;
 let activeFace = "bottom";
 let wireframeEnabled = false;
 let projectionsEnabled = false;
+let cubeEnabled = true;
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -417,6 +421,13 @@ function syncProjectionsToggle() {
       mesh.visible = projectionsEnabled;
     }
   });
+}
+
+function syncCubeToggle() {
+  cubeToggle.checked = !cubeEnabled;
+  cubeOn.classList.toggle("active", cubeEnabled);
+  cubeOff.classList.toggle("active", !cubeEnabled);
+  cubeGroup.visible = cubeEnabled;
 }
 
 function updateBrushRadii() {
@@ -1170,6 +1181,11 @@ projectionsToggle.addEventListener("change", (event) => {
   scheduleRebuild(0);
 });
 
+cubeToggle.addEventListener("change", (event) => {
+  cubeEnabled = !event.target.checked;
+  syncCubeToggle();
+});
+
 [panelHandle, panelHandleBottom].forEach((handle) => {
   handle.addEventListener("pointerdown", startPanelDrag);
 });
@@ -1194,6 +1210,7 @@ updateMeshStats(0);
 setActiveFace("bottom");
 syncWireframeToggle();
 syncProjectionsToggle();
+syncCubeToggle();
 
 updateRendererSize();
 if ("ResizeObserver" in window) {

@@ -5,7 +5,7 @@
 ## Features
 - Paintable bottom/back/side faces with brush overlay
 - Silhouette intersection to generate a volume mesh (marching cubes)
-- Resolution, brush size, smoothing, wireframe, and projection toggles in-panel
+- Resolution, brush size, smoothing, wireframe, projection, and cube toggles in-panel
 - Orbit/pan camera controls with live UI feedback
 
 ## Getting Started
@@ -22,3 +22,4 @@
 - Rebuild/Clear update the generated mesh
 - Wireframe toggle shows/hides the triangulated overlay
 - Projections toggle shows per-face projection volumes
+- Cube toggle shows/hides the cube faces, grids, and labels
