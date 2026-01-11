@@ -1033,9 +1033,16 @@ function updateBrushOverlay(clientX, clientY, hit) {
     return;
   }
 
+  if (!cubeEnabled) {
+    brushDot.setAttribute("cx", clientX);
+    brushDot.setAttribute("cy", clientY);
+    setBrushDotOnlyVisible(true);
+    return;
+  }
+
   brushDot.setAttribute("cx", clientX);
   brushDot.setAttribute("cy", clientY);
-  if (!cubeEnabled) {
+  if (!hit) {
     setBrushDotOnlyVisible(true);
     return;
   }
