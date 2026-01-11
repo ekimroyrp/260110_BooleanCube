@@ -64,7 +64,6 @@ const paintCtx = paintCanvas.getContext("2d");
 
 const brushOverlay = document.getElementById("brush-overlay");
 const brushCircle = document.getElementById("brush-circle");
-const falloffCircle = document.getElementById("falloff-circle");
 const brushDot = document.getElementById("brush-dot");
 
 const densityInput = document.getElementById("density");
@@ -355,14 +354,12 @@ function updateBrushRadii() {
   const size = Number(brushSizeInput.value);
   const radius = 6 + (size / 100) * 40;
   brushCircle.setAttribute("r", radius);
-  falloffCircle.setAttribute("r", radius * 1.6);
   brushDot.setAttribute("r", 2.5);
 }
 
 function setBrushVisible(visible) {
   const opacity = visible ? "1" : "0";
   brushCircle.style.opacity = opacity;
-  falloffCircle.style.opacity = opacity;
   brushDot.style.opacity = opacity;
 }
 
@@ -802,8 +799,6 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   const { clientX, clientY } = event;
   brushCircle.setAttribute("cx", clientX);
   brushCircle.setAttribute("cy", clientY);
-  falloffCircle.setAttribute("cx", clientX);
-  falloffCircle.setAttribute("cy", clientY);
   brushDot.setAttribute("cx", clientX);
   brushDot.setAttribute("cy", clientY);
   setBrushVisible(true);

@@ -37,7 +37,7 @@ body {
 
 #canvas-host canvas {
   display: block;
-  cursor: crosshair;
+  cursor: none;
   touch-action: none;
 }
 
@@ -53,13 +53,6 @@ body {
   fill: none;
   stroke: #f0284b;
   stroke-width: 2;
-  opacity: 0;
-}
-
-#falloff-circle {
-  fill: none;
-  stroke: #f76c83;
-  stroke-width: 1.5;
   opacity: 0;
 }
 
