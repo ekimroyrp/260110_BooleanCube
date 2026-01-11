@@ -77,11 +77,11 @@ const half = cubeSize / 2;
 const meshInset = 0.01;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
-const paintColor = "rgba(240, 40, 75, 0.45)";
+const paintColor = "rgba(72, 40, 240, 0.45)";
 const labelEdgeOffset = 0.06;
 const labelNormalOffset = 0.06;
 const labelDefaultColor = "rgba(255,255,255,0.65)";
-const labelHoverColor = "#ff6a83";
+const labelHoverColor = "#836aff";
 const viewPoleOffset = 0.001;
 const paintCanvas = document.createElement("canvas");
 paintCanvas.width = faceCanvasSize;
@@ -501,7 +501,7 @@ const wireframeMaterial = new THREE.MeshBasicMaterial({
   polygonOffsetUnits: -1
 });
 const projectionMaterial = new THREE.MeshStandardMaterial({
-  color: 0xf04a5b,
+  color: 0x704af0,
   roughness: 0.4,
   metalness: 0.05,
   transparent: true,
@@ -578,7 +578,7 @@ function setActiveFace(face) {
   activeFace = face;
   Object.values(faces).forEach((item) => {
     const isActive = item.name === face;
-    item.mesh.material.emissive.set(isActive ? 0x2a0b12 : 0x171a22);
+    item.mesh.material.emissive.set(isActive ? 0x0e0b2a : 0x171a22);
     item.mesh.material.emissiveIntensity = isActive ? 0.7 : 0.45;
     item.mesh.material.opacity = 0.95;
   });
