@@ -46,6 +46,9 @@ controls.touches = {
 };
 controls.update();
 controls.addEventListener("change", () => {
+  if (cameraMode === "ortho") {
+    orthoZoom = camera.zoom;
+  }
   maybeExitOrtho();
   refreshBrushFromPointer();
 });
@@ -68,6 +71,7 @@ const cameraTween = {
 };
 let cameraMode = "perspective";
 let suppressOrthoExit = false;
+let orthoZoom = 1;
 const orthoLockDirection = new THREE.Vector3();
 const orthoLockTarget = new THREE.Vector3();
 const orthoExitDotThreshold = 0.999;
@@ -621,8 +625,11 @@ function enterOrtho(lockDirection, lockTarget) {
     cameraMode = "ortho";
     camera = orthoCamera;
     controls.object = orthoCamera;
+    orthoZoom = 1;
+  } else {
+    orthoZoom = orthoCamera.zoom;
   }
-  orthoCamera.zoom = 1;
+  orthoCamera.zoom = orthoZoom;
   updateOrthoFrustum(distance);
   controls.update();
 }
