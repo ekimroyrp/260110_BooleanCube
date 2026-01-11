@@ -106,6 +106,7 @@ const brushDot = document.getElementById("brush-dot");
 const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
 const brushSizeInput = document.getElementById("brush-size");
+const angleToggle = document.getElementById("angle-toggle");
 const wireframeToggle = document.getElementById("wireframe");
 const projectionsToggle = document.getElementById("projections");
 const cubeToggle = document.getElementById("cube-toggle");
@@ -120,6 +121,8 @@ const historyLimit = 50;
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const brushValue = document.getElementById("brush-value");
+const angleOn = document.getElementById("angle-on");
+const angleOff = document.getElementById("angle-off");
 const wfOn = document.getElementById("wf-on");
 const wfOff = document.getElementById("wf-off");
 const projOn = document.getElementById("proj-on");
@@ -560,6 +563,7 @@ let lastUv = null;
 let paintPointerId = null;
 let strokeModified = false;
 let booleanMode = "intersect";
+let angleEnabled = true;
 let wireframeEnabled = false;
 let projectionsEnabled = false;
 let cubeEnabled = true;
@@ -704,6 +708,12 @@ function focusCameraOnLabel(labelSprite) {
 function resetCamera() {
   exitOrtho();
   startCameraTween(defaultCameraPosition, defaultCameraTarget);
+}
+
+function syncAngleToggle() {
+  angleToggle.checked = !angleEnabled;
+  angleOn.classList.toggle("active", angleEnabled);
+  angleOff.classList.toggle("active", !angleEnabled);
 }
 
 function syncWireframeToggle() {
@@ -1365,6 +1375,133 @@ function buildSurfaceGeometry(field, res, paddedRes) {
   };
 }
 
+function buildVoxelGeometry(res, masks, mode = booleanMode) {
+  const {
+    bottomMask,
+    backMask,
+    sideMask
+  } = masks || getMasks(res);
+  const activeMaskCount =
+    (bottomMask ? 1 : 0) + (backMask ? 1 : 0) + (sideMask ? 1 : 0);
+  if (activeMaskCount === 0) {
+    return { geometry: null, triangles: 0, vertices: 0 };
+  }
+
+  const step = cubeSize / res;
+  const positions = [];
+
+  const isInside = (x, y, z) => {
+    if (x < 0 || x >= res || y < 0 || y >= res || z < 0 || z >= res) {
+      return false;
+    }
+    const invZ = res - 1 - z;
+    let count = 0;
+    if (bottomMask && bottomMask[x + invZ * res]) {
+      count += 1;
+    }
+    if (backMask && backMask[x + y * res]) {
+      count += 1;
+    }
+    if (sideMask && sideMask[invZ + y * res]) {
+      count += 1;
+    }
+    if (mode === "union") {
+      return count > 0;
+    }
+    if (mode === "difference") {
+      return count === 1;
+    }
+    return count === activeMaskCount;
+  };
+
+  const pushQuad = (
+    ax,
+    ay,
+    az,
+    bx,
+    by,
+    bz,
+    cx,
+    cy,
+    cz,
+    dx,
+    dy,
+    dz
+  ) => {
+    positions.push(
+      ax,
+      ay,
+      az,
+      bx,
+      by,
+      bz,
+      cx,
+      cy,
+      cz,
+      ax,
+      ay,
+      az,
+      cx,
+      cy,
+      cz,
+      dx,
+      dy,
+      dz
+    );
+  };
+
+  for (let z = 0; z < res; z++) {
+    const z0 = -half + z * step;
+    const z1 = z0 + step;
+    for (let y = 0; y < res; y++) {
+      const y0 = -half + y * step;
+      const y1 = y0 + step;
+      for (let x = 0; x < res; x++) {
+        if (!isInside(x, y, z)) {
+          continue;
+        }
+        const x0 = -half + x * step;
+        const x1 = x0 + step;
+
+        if (!isInside(x - 1, y, z)) {
+          pushQuad(x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0);
+        }
+        if (!isInside(x + 1, y, z)) {
+          pushQuad(x1, y0, z0, x1, y1, z0, x1, y1, z1, x1, y0, z1);
+        }
+        if (!isInside(x, y - 1, z)) {
+          pushQuad(x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1);
+        }
+        if (!isInside(x, y + 1, z)) {
+          pushQuad(x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1);
+        }
+        if (!isInside(x, y, z - 1)) {
+          pushQuad(x0, y0, z0, x0, y1, z0, x1, y1, z0, x1, y0, z0);
+        }
+        if (!isInside(x, y, z + 1)) {
+          pushQuad(x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1);
+        }
+      }
+    }
+  }
+
+  if (positions.length === 0) {
+    return { geometry: null, triangles: 0, vertices: 0 };
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+  );
+  geometry.computeVertexNormals();
+  return {
+    geometry,
+    triangles: positions.length / 9,
+    vertices: positions.length / 3
+  };
+}
+
 function clearProjectionMeshes() {
   Object.keys(projectionMeshes).forEach((key) => {
     const mesh = projectionMeshes[key];
@@ -1397,9 +1534,14 @@ function updateProjectionMesh(faceName, mask, density, smoothIterations) {
     masks.sideMask = mask;
   }
 
-  const { field, paddedRes } = buildField(density, masks);
-  const smoothedField = smoothField(field, paddedRes, smoothIterations);
-  const { geometry } = buildSurfaceGeometry(smoothedField, density, paddedRes);
+  let geometry = null;
+  if (angleEnabled) {
+    const { field, paddedRes } = buildField(density, masks);
+    const smoothedField = smoothField(field, paddedRes, smoothIterations);
+    ({ geometry } = buildSurfaceGeometry(smoothedField, density, paddedRes));
+  } else {
+    ({ geometry } = buildVoxelGeometry(density, masks));
+  }
 
   if (!geometry) {
     if (existing) {
@@ -1438,7 +1580,7 @@ function updateProjectionMeshes(density, smoothIterations, masks) {
 
 function rebuildMesh() {
   const density = Number(densityInput.value);
-  const smoothIterations = Number(smoothingInput.value);
+  const smoothIterations = angleEnabled ? Number(smoothingInput.value) : 0;
 
   const anyPaint =
     faces.bottom.hasPaint || faces.back.hasPaint || faces.side.hasPaint;
@@ -1450,13 +1592,20 @@ function rebuildMesh() {
 
   meshStats.textContent = "Building...";
   const masks = getMasks(density);
-  const { field: baseField, paddedRes } = buildField(density, masks);
-  const field = smoothField(baseField, paddedRes, smoothIterations);
-  const { geometry, triangles, vertices } = buildSurfaceGeometry(
-    field,
-    density,
-    paddedRes
-  );
+  let geometry = null;
+  let triangles = 0;
+  let vertices = 0;
+  if (angleEnabled) {
+    const { field: baseField, paddedRes } = buildField(density, masks);
+    const field = smoothField(baseField, paddedRes, smoothIterations);
+    ({ geometry, triangles, vertices } = buildSurfaceGeometry(
+      field,
+      density,
+      paddedRes
+    ));
+  } else {
+    ({ geometry, triangles, vertices } = buildVoxelGeometry(density, masks));
+  }
 
   if (!geometry) {
     clearResult();
@@ -1842,6 +1991,12 @@ wireframeToggle.addEventListener("change", (event) => {
   syncWireframeToggle();
 });
 
+angleToggle.addEventListener("change", (event) => {
+  angleEnabled = !event.target.checked;
+  syncAngleToggle();
+  scheduleRebuild(0);
+});
+
 projectionsToggle.addEventListener("change", (event) => {
   projectionsEnabled = !event.target.checked;
   syncProjectionsToggle();
@@ -1910,6 +2065,7 @@ updateBrushRadii();
 updateFaceGrids(getDensityValue());
 updateMeshStats(0);
 setBooleanMode("intersect", false, false);
+syncAngleToggle();
 syncWireframeToggle();
 syncProjectionsToggle();
 syncCubeToggle();
