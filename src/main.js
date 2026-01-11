@@ -379,6 +379,8 @@ let projectionsEnabled = false;
 let cubeEnabled = true;
 let shiftOrbitSwap = false;
 let originalLeftButton = null;
+let shiftPanSwap = false;
+let originalRightButton = null;
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -448,6 +450,24 @@ function disableShiftOrbitSwap() {
   controls.mouseButtons.LEFT = originalLeftButton ?? THREE.MOUSE.ROTATE;
   originalLeftButton = null;
   shiftOrbitSwap = false;
+}
+
+function enableShiftPanSwap() {
+  if (shiftPanSwap) {
+    return;
+  }
+  shiftPanSwap = true;
+  originalRightButton = controls.mouseButtons.RIGHT;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+}
+
+function disableShiftPanSwap() {
+  if (!shiftPanSwap) {
+    return;
+  }
+  controls.mouseButtons.RIGHT = originalRightButton ?? THREE.MOUSE.PAN;
+  originalRightButton = null;
+  shiftPanSwap = false;
 }
 
 function updateBrushRadii() {
@@ -1099,7 +1119,19 @@ renderer.domElement.addEventListener(
   "pointerdown",
   (event) => {
     if (event.button === 0 && event.shiftKey) {
+      disableShiftPanSwap();
       enableShiftOrbitSwap();
+    }
+  },
+  { capture: true }
+);
+
+renderer.domElement.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.button === 2 && event.shiftKey) {
+      disableShiftOrbitSwap();
+      enableShiftPanSwap();
     }
   },
   { capture: true }
@@ -1108,6 +1140,7 @@ renderer.domElement.addEventListener(
 renderer.domElement.addEventListener("pointerleave", () => {
   isPointerInCanvas = false;
   disableShiftOrbitSwap();
+  disableShiftPanSwap();
   setBrushVisible(false);
 });
 
@@ -1117,6 +1150,9 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   }
   isPointerInCanvas = true;
   if (event.button === 0 && event.shiftKey) {
+    return;
+  }
+  if (event.button === 2 && event.shiftKey) {
     return;
   }
 
@@ -1140,6 +1176,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 renderer.domElement.addEventListener("pointerup", (event) => {
   if (!isPainting) {
     disableShiftOrbitSwap();
+    disableShiftPanSwap();
     return;
   }
 
@@ -1152,6 +1189,7 @@ renderer.domElement.addEventListener("pointerup", (event) => {
   controls.enabled = true;
   renderer.domElement.releasePointerCapture(event.pointerId);
   disableShiftOrbitSwap();
+  disableShiftPanSwap();
   if (finishedMode === "erase" && finishedFace) {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
@@ -1168,6 +1206,7 @@ renderer.domElement.addEventListener("pointercancel", () => {
   lastUv = null;
   controls.enabled = true;
   disableShiftOrbitSwap();
+  disableShiftPanSwap();
   if (finishedMode === "erase" && finishedFace) {
     finishedFace.hasPaint = hasAnyPaint(finishedFace);
     refreshFaceDisplay(finishedFace);
