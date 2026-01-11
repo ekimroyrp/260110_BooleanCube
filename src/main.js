@@ -407,7 +407,7 @@ function createFace(
     emissive: new THREE.Color(0x171a22),
     emissiveIntensity: 0.6,
     transparent: true,
-    opacity: 0.81,
+    opacity: 0.89,
     roughness: 0.78,
     metalness: 0.08,
     side: THREE.DoubleSide
