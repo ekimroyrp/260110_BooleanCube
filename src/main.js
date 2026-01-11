@@ -42,6 +42,8 @@ controls.update();
 controls.addEventListener("change", () => {
   refreshBrushFromPointer();
 });
+const defaultCameraPosition = camera.position.clone();
+const defaultCameraTarget = controls.target.clone();
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
@@ -405,6 +407,12 @@ function setActiveFace(face) {
     item.mesh.material.emissiveIntensity = isActive ? 0.7 : 0.45;
     item.mesh.material.opacity = 0.95;
   });
+}
+
+function resetCamera() {
+  controls.target.copy(defaultCameraTarget);
+  camera.position.copy(defaultCameraPosition);
+  controls.update();
 }
 
 function syncWireframeToggle() {
@@ -1269,7 +1277,7 @@ window.addEventListener("pointermove", onPanelDrag);
 window.addEventListener("pointerup", stopPanelDrag);
 window.addEventListener("pointercancel", stopPanelDrag);
 
-rebuildButton.addEventListener("click", () => rebuildMesh());
+rebuildButton.addEventListener("click", () => resetCamera());
 
 clearButton.addEventListener("click", () => {
   Object.values(faces).forEach((face) => resetFace(face));

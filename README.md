@@ -19,7 +19,8 @@
 - Left drag on empty space: orbit camera
 - Right drag on empty space: pan camera
 - Mouse wheel: zoom
-- Rebuild/Clear update the generated mesh
+- Center resets the camera view
+- Clear resets the drawings and mesh
 - Wireframe toggle shows/hides the triangulated overlay
 - Projections toggle shows per-face projection volumes
 - Cube toggle shows/hides the cube faces, grids, and labels
