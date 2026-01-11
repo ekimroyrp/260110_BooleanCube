@@ -72,6 +72,10 @@ const meshInset = 0.01;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
 const paintColor = "rgba(240, 40, 75, 0.45)";
+const labelEdgeOffset = 0.06;
+const labelNormalOffset = 0.06;
+const labelDefaultColor = "rgba(255,255,255,0.65)";
+const labelHoverColor = "#ff6a83";
 const paintCanvas = document.createElement("canvas");
 paintCanvas.width = faceCanvasSize;
 paintCanvas.height = faceCanvasSize;
@@ -136,6 +140,28 @@ function updateRange(input, output, formatter) {
     output.textContent = formatter ? formatter(value) : value;
   }
   return value;
+}
+
+function drawLabelSprite(sprite, highlighted) {
+  if (!sprite || !sprite.userData) {
+    return;
+  }
+  if (sprite.userData.highlighted === highlighted && sprite.userData.drawn) {
+    return;
+  }
+  const { canvas, ctx, text } = sprite.userData;
+  if (!canvas || !ctx) {
+    return;
+  }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "28px Roboto, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = highlighted ? labelHoverColor : labelDefaultColor;
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  sprite.material.map.needsUpdate = true;
+  sprite.userData.highlighted = highlighted;
+  sprite.userData.drawn = true;
 }
 
 const booleanOptions = booleanOptionsEls.map((el) => ({
@@ -314,13 +340,6 @@ function createLabelSprite(text) {
   const ctx = canvas.getContext("2d");
   const labelText = String(text).toUpperCase();
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = "28px Roboto, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(255,255,255,0.65)";
-  ctx.fillText(labelText, canvas.width / 2, canvas.height / 2);
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
@@ -333,6 +352,14 @@ function createLabelSprite(text) {
   });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(0.6, 0.15, 1);
+  sprite.userData = {
+    canvas,
+    ctx,
+    text: labelText,
+    highlighted: false,
+    drawn: false
+  };
+  drawLabelSprite(sprite, false);
   return sprite;
 }
 
@@ -343,7 +370,7 @@ function createFace(
   labelEdgeSign = 1,
   labelExtraOffset = 0,
   useTextHeightOffset = false,
-  labelNormalMagnitude = 0.03
+  labelNormalMagnitude = labelNormalOffset
 ) {
   const baseCanvas = document.createElement("canvas");
   baseCanvas.width = faceCanvasSize;
@@ -381,7 +408,7 @@ function createFace(
 
   const mesh = new THREE.Mesh(planeGeo, material);
   const labelSprite = createLabelSprite(label);
-  const labelOffset = 0.06;
+  const labelOffset = labelEdgeOffset;
   const labelNormalOffset = labelNormalMagnitude * labelNormalSign;
   const extraOffset =
     labelExtraOffset + (useTextHeightOffset ? labelSprite.scale.y : 0);
@@ -426,6 +453,12 @@ faces.side.mesh.rotation.y = Math.PI / 2;
 faces.side.mesh.position.x = -half;
 
 const faceMeshes = Object.values(faces).map((face) => face.mesh);
+const labelSprites = [
+  faces.bottom.labelSprite,
+  faces.back.labelSprite,
+  faces.side.labelSprite
+];
+let hoveredLabel = null;
 
 const bounds = new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize)),
@@ -438,6 +471,10 @@ const bounds = new THREE.LineSegments(
 const cubeGroup = new THREE.Group();
 cubeGroup.add(bounds);
 faceMeshes.forEach((mesh) => cubeGroup.add(mesh));
+faces.bottom.labelSprite.userData.viewDirection = new THREE.Vector3(0, -1, 0);
+faces.back.labelSprite.userData.viewDirection = new THREE.Vector3(0, 0, -1);
+faces.side.labelSprite.userData.viewDirection = new THREE.Vector3(-1, 0, 0);
+
 scene.add(cubeGroup);
 
 const resultMaterial = new THREE.MeshStandardMaterial({
@@ -490,6 +527,8 @@ const screenCenter = new THREE.Vector3();
 const screenU = new THREE.Vector3();
 const screenV = new THREE.Vector3();
 const basisMatrix = new THREE.Matrix3();
+const viewEndPos = new THREE.Vector3();
+const viewTarget = new THREE.Vector3();
 
 let isPainting = false;
 let paintMode = "draw";
@@ -533,13 +572,28 @@ function setActiveFace(face) {
   });
 }
 
-function resetCamera() {
+function startCameraTween(endPos, endTarget) {
   cameraTween.active = true;
   cameraTween.startTime = performance.now();
   cameraTween.startPos.copy(camera.position);
   cameraTween.startTarget.copy(controls.target);
-  cameraTween.endPos.copy(defaultCameraPosition);
-  cameraTween.endTarget.copy(defaultCameraTarget);
+  cameraTween.endPos.copy(endPos);
+  cameraTween.endTarget.copy(endTarget);
+}
+
+function focusCameraOnLabel(labelSprite) {
+  if (!labelSprite || !labelSprite.userData?.viewDirection) {
+    return;
+  }
+  const direction = labelSprite.userData.viewDirection;
+  const distance = camera.position.distanceTo(controls.target);
+  viewTarget.copy(defaultCameraTarget);
+  viewEndPos.copy(viewTarget).addScaledVector(direction, distance);
+  startCameraTween(viewEndPos, viewTarget);
+}
+
+function resetCamera() {
+  startCameraTween(defaultCameraPosition, defaultCameraTarget);
 }
 
 function syncWireframeToggle() {
@@ -567,6 +621,9 @@ function syncCubeToggle() {
   cubeOn.classList.toggle("active", cubeEnabled);
   cubeOff.classList.toggle("active", !cubeEnabled);
   cubeGroup.visible = cubeEnabled;
+  if (!cubeEnabled) {
+    setHoveredLabel(null);
+  }
 }
 
 function enableShiftOrbitSwap() {
@@ -708,6 +765,27 @@ function resetFace(face) {
   face.maskCtx.clearRect(0, 0, faceCanvasSize, faceCanvasSize);
   face.hasPaint = false;
   refreshFaceDisplay(face);
+}
+
+function setHoveredLabel(sprite) {
+  if (hoveredLabel === sprite) {
+    return;
+  }
+  if (hoveredLabel) {
+    drawLabelSprite(hoveredLabel, false);
+  }
+  hoveredLabel = sprite;
+  if (hoveredLabel) {
+    drawLabelSprite(hoveredLabel, true);
+  }
+}
+
+function updateLabelHover(clientX, clientY) {
+  if (!labelSprites.length) {
+    return;
+  }
+  const hit = getIntersectionAt(clientX, clientY, labelSprites);
+  setHoveredLabel(hit ? hit.object : null);
 }
 
 function snapshotFace(face) {
@@ -1327,6 +1405,9 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   const hitTargets = isPainting && paintFace ? paintFace.mesh : faceMeshes;
   const hit = getIntersectionAt(clientX, clientY, hitTargets);
   updateBrushOverlay(clientX, clientY, hit);
+  if (!isPainting) {
+    updateLabelHover(clientX, clientY);
+  }
 
   if (!isPainting) {
     return;
@@ -1367,6 +1448,7 @@ renderer.domElement.addEventListener("pointerleave", () => {
   disableShiftOrbitSwap();
   disableShiftPanSwap();
   setBrushVisible(false);
+  setHoveredLabel(null);
 });
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
@@ -1381,6 +1463,15 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (event.button === 0) {
+    const labelHit = getIntersectionAt(event.clientX, event.clientY, labelSprites);
+    if (labelHit) {
+      event.preventDefault();
+      focusCameraOnLabel(labelHit.object);
+      return;
+    }
+  }
+
   const hit = getIntersectionAt(event.clientX, event.clientY, faceMeshes);
   if (!hit || !hit.uv) {
     return;
@@ -1389,6 +1480,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   updateBrushOverlay(event.clientX, event.clientY, hit);
   event.preventDefault();
   isPainting = true;
+  setHoveredLabel(null);
   strokeModified = false;
   paintMode = event.button === 2 ? "erase" : "draw";
   paintFace = hit.object.userData.face;
