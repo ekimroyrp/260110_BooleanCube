@@ -72,12 +72,15 @@ const brushDot = document.getElementById("brush-dot");
 const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
 const brushSizeInput = document.getElementById("brush-size");
+const wireframeToggle = document.getElementById("wireframe");
 const rebuildButton = document.getElementById("rebuild");
 const clearButton = document.getElementById("clear-all");
 
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const brushValue = document.getElementById("brush-value");
+const wfOn = document.getElementById("wf-on");
+const wfOff = document.getElementById("wf-off");
 const meshStats = document.getElementById("mesh-stats");
 const panel = document.getElementById("panel");
 const panelHandle = document.getElementById("panel-handle");
@@ -315,8 +318,19 @@ const resultMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.12,
   side: THREE.DoubleSide
 });
+const wireframeMaterial = new THREE.MeshBasicMaterial({
+  color: 0x555a63,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.7,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+  polygonOffsetUnits: -1
+});
 
 let resultMesh = null;
+let wireframeMesh = null;
 let rebuildTimer = null;
 
 const raycaster = new THREE.Raycaster();
@@ -340,6 +354,7 @@ let paintMode = "draw";
 let paintFace = null;
 let lastUv = null;
 let activeFace = "bottom";
+let wireframeEnabled = false;
 
 const EDGE_CONNECTIONS = [
   [0, 1],
@@ -364,6 +379,15 @@ function setActiveFace(face) {
     item.mesh.material.emissiveIntensity = isActive ? 0.7 : 0.45;
     item.mesh.material.opacity = 0.95;
   });
+}
+
+function syncWireframeToggle() {
+  wireframeToggle.checked = !wireframeEnabled;
+  wfOn.classList.toggle("active", wireframeEnabled);
+  wfOff.classList.toggle("active", !wireframeEnabled);
+  if (wireframeMesh) {
+    wireframeMesh.visible = wireframeEnabled;
+  }
 }
 
 function updateBrushRadii() {
@@ -860,26 +884,51 @@ function rebuildMesh() {
     return;
   }
 
+  const scale = (cubeSize - meshInset * 2) / cubeSize;
+  const oldGeometry = resultMesh ? resultMesh.geometry : null;
+
   if (!resultMesh) {
     resultMesh = new THREE.Mesh(geometry, resultMaterial);
-    const scale = (cubeSize - meshInset * 2) / cubeSize;
-    resultMesh.scale.setScalar(scale);
     scene.add(resultMesh);
   } else {
-    resultMesh.geometry.dispose();
     resultMesh.geometry = geometry;
-    const scale = (cubeSize - meshInset * 2) / cubeSize;
-    resultMesh.scale.setScalar(scale);
+  }
+  resultMesh.scale.setScalar(scale);
+
+  if (!wireframeMesh) {
+    wireframeMesh = new THREE.Mesh(geometry, wireframeMaterial);
+    wireframeMesh.visible = wireframeEnabled;
+    wireframeMesh.renderOrder = 2;
+    scene.add(wireframeMesh);
+  } else {
+    wireframeMesh.geometry = geometry;
+    wireframeMesh.visible = wireframeEnabled;
+  }
+  wireframeMesh.scale.setScalar(scale);
+
+  if (oldGeometry) {
+    oldGeometry.dispose();
   }
 
   updateMeshStats(Math.round(triangles), Math.round(vertices));
 }
 
 function clearResult() {
+  const sharedGeometry = resultMesh
+    ? resultMesh.geometry
+    : wireframeMesh
+      ? wireframeMesh.geometry
+      : null;
   if (resultMesh) {
     scene.remove(resultMesh);
-    resultMesh.geometry.dispose();
     resultMesh = null;
+  }
+  if (wireframeMesh) {
+    scene.remove(wireframeMesh);
+    wireframeMesh = null;
+  }
+  if (sharedGeometry) {
+    sharedGeometry.dispose();
   }
 }
 
@@ -997,6 +1046,11 @@ const updateRendererSize = () => {
   });
 });
 
+wireframeToggle.addEventListener("change", (event) => {
+  wireframeEnabled = !event.target.checked;
+  syncWireframeToggle();
+});
+
 [panelHandle, panelHandleBottom].forEach((handle) => {
   handle.addEventListener("pointerdown", startPanelDrag);
 });
@@ -1019,6 +1073,7 @@ updateBrushRadii();
 updateFaceGrids(getDensityValue());
 updateMeshStats(0);
 setActiveFace("bottom");
+syncWireframeToggle();
 
 updateRendererSize();
 if ("ResizeObserver" in window) {

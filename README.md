@@ -5,7 +5,7 @@
 ## Features
 - Paintable bottom/back/side faces with brush overlay
 - Silhouette intersection to generate a volume mesh (marching cubes)
-- Face density and smoothing controls with rebuild/clear actions
+- Resolution, brush size, smoothing, and wireframe toggles in-panel
 - Orbit/pan camera controls with live UI feedback
 
 ## Getting Started
@@ -15,7 +15,9 @@
 
 ## Controls
 - Left drag on a face: paint
-- Left drag on empty space: pan camera
-- Right drag: orbit camera
+- Right drag on a face: erase
+- Left drag on empty space: orbit camera
+- Right drag on empty space: pan camera
 - Mouse wheel: zoom
 - Rebuild/Clear update the generated mesh
+- Wireframe toggle shows/hides the triangulated overlay
