@@ -5,6 +5,7 @@
 ## Features
 - Paintable bottom/back/side faces with brush overlay
 - Silhouette intersection to generate a volume mesh (marching cubes)
+- Boolean mode dropdown (Intersect, Difference, Union)
 - Resolution, brush size, smoothing, wireframe, projection, and cube toggles in-panel
 - Undo/redo history for brush strokes and clear actions
 - Orbit/pan camera controls with live UI feedback
@@ -20,6 +21,7 @@
 - Left drag on empty space: orbit camera
 - Right drag on empty space: pan camera
 - Mouse wheel: zoom
+- Boolean dropdown sets intersect/difference/union behavior for the projection volumes
 - Center resets the camera view
 - Clear resets the drawings and mesh
 - Undo reverts the last stroke or clear

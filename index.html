@@ -15,6 +15,20 @@
       <div class="ui-panel" id="panel">
         <div class="panel-header" id="panel-handle"></div>
         <div class="panel-section">
+          <label class="label">Boolean</label>
+          <div class="dropdown" id="boolean-dropdown">
+            <button class="dropdown-btn" id="boolean-toggle" aria-haspopup="listbox" aria-expanded="false">
+              <span id="boolean-label">Intersect</span>
+              <span class="dropdown-caret"></span>
+            </button>
+            <ul class="dropdown-list" id="boolean-list" role="listbox">
+              <li class="dropdown-option selected" data-value="intersect" role="option" aria-selected="true">Intersect</li>
+              <li class="dropdown-option" data-value="difference" role="option" aria-selected="false">Difference</li>
+              <li class="dropdown-option" data-value="union" role="option" aria-selected="false">Union</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel-section">
           <label class="label">Brush <span id="brush-value"></span></label>
           <input id="brush-size" type="range" min="1" max="100" step="1" value="30" />
         </div>

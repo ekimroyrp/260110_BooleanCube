@@ -108,6 +108,13 @@ const meshStats = document.getElementById("mesh-stats");
 const panel = document.getElementById("panel");
 const panelHandle = document.getElementById("panel-handle");
 const panelHandleBottom = document.getElementById("panel-handle-bottom");
+const booleanDropdown = document.getElementById("boolean-dropdown");
+const booleanToggle = document.getElementById("boolean-toggle");
+const booleanList = document.getElementById("boolean-list");
+const booleanLabel = document.getElementById("boolean-label");
+const booleanOptionsEls = Array.from(
+  booleanList.querySelectorAll(".dropdown-option")
+);
 
 let isPanelDragging = false;
 let panelDragStart = { x: 0, y: 0 };
@@ -123,6 +130,53 @@ function updateRange(input, output, formatter) {
     output.textContent = formatter ? formatter(value) : value;
   }
   return value;
+}
+
+const booleanOptions = booleanOptionsEls.map((el) => ({
+  value: el.dataset.value,
+  label: el.textContent.trim(),
+  el
+}));
+booleanOptionsEls.forEach((el) => el.setAttribute("tabindex", "-1"));
+let booleanOpen = false;
+
+function closeBooleanDropdown() {
+  booleanOpen = false;
+  booleanDropdown.classList.remove("open");
+  booleanToggle.setAttribute("aria-expanded", "false");
+  booleanOptionsEls.forEach((el) => el.classList.remove("focused"));
+}
+
+function openBooleanDropdown() {
+  booleanOpen = true;
+  booleanDropdown.classList.add("open");
+  booleanToggle.setAttribute("aria-expanded", "true");
+}
+
+function setBooleanMode(value, close = true, rebuild = true) {
+  booleanMode = value;
+  booleanOptions.forEach((opt) => {
+    const selected = opt.value === value;
+    opt.el.classList.toggle("selected", selected);
+    opt.el.setAttribute("aria-selected", selected);
+    if (selected) {
+      booleanLabel.textContent = opt.label;
+    }
+  });
+  if (close) {
+    closeBooleanDropdown();
+  }
+  if (rebuild) {
+    scheduleRebuild(0);
+  }
+}
+
+function focusBooleanOption(index) {
+  const clamped = THREE.MathUtils.clamp(index, 0, booleanOptions.length - 1);
+  booleanOptionsEls.forEach((el, i) =>
+    el.classList.toggle("focused", i === clamped)
+  );
+  booleanOptions[clamped].el.focus();
 }
 
 function updateMeshStats(faces, vertices) {
@@ -392,6 +446,7 @@ let paintFace = null;
 let lastUv = null;
 let activeFace = "bottom";
 let strokeModified = false;
+let booleanMode = "intersect";
 let wireframeEnabled = false;
 let projectionsEnabled = false;
 let cubeEnabled = true;
@@ -779,7 +834,7 @@ function getMasks(res) {
   };
 }
 
-function buildField(res, masks) {
+function buildField(res, masks, mode = booleanMode) {
   const paddedRes = res + 1;
   const size = paddedRes + 1;
   const slice = size * size;
@@ -791,6 +846,8 @@ function buildField(res, masks) {
     backMask,
     sideMask
   } = masks || getMasks(res);
+  const activeMaskCount =
+    (bottomMask ? 1 : 0) + (backMask ? 1 : 0) + (sideMask ? 1 : 0);
 
   for (let z = 0; z <= paddedRes; z++) {
     const zOffset = z * slice;
@@ -804,7 +861,7 @@ function buildField(res, masks) {
       const sideOffset = yi * maskSize;
       for (let x = 0; x <= paddedRes; x++) {
         const xi = x - 1;
-        let inside = true;
+        let inside = false;
         if (
           xi < 0 ||
           xi >= res ||
@@ -815,17 +872,24 @@ function buildField(res, masks) {
         ) {
           inside = false;
         } else {
-          if (bottomMask) {
-            if (bottomMask[xi + bottomOffset] === 0) {
-              inside = false;
-            }
+          let count = 0;
+          if (bottomMask && bottomMask[xi + bottomOffset]) {
+            count += 1;
           }
-          if (backMask && backMask[xi + backOffset] === 0) {
-            inside = false;
+          if (backMask && backMask[xi + backOffset]) {
+            count += 1;
           }
-          if (sideMask) {
-            if (sideMask[invZ + sideOffset] === 0) {
-              inside = false;
+          if (sideMask && sideMask[invZ + sideOffset]) {
+            count += 1;
+          }
+
+          if (activeMaskCount > 0) {
+            if (mode === "union") {
+              inside = count > 0;
+            } else if (mode === "difference") {
+              inside = count === 1;
+            } else {
+              inside = count === activeMaskCount;
             }
           }
         }
@@ -1365,6 +1429,72 @@ const updateRendererSize = () => {
   });
 });
 
+booleanToggle.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (booleanOpen) {
+    closeBooleanDropdown();
+    return;
+  }
+  openBooleanDropdown();
+  const selectedIdx = booleanOptions.findIndex((opt) => opt.value === booleanMode);
+  focusBooleanOption(selectedIdx >= 0 ? selectedIdx : 0);
+});
+
+booleanToggle.addEventListener("keydown", (event) => {
+  if (
+    event.key === "ArrowDown" ||
+    event.key === "ArrowUp" ||
+    event.key === " " ||
+    event.key === "Enter"
+  ) {
+    event.preventDefault();
+    if (!booleanOpen) {
+      openBooleanDropdown();
+    }
+    const selectedIdx = booleanOptions.findIndex(
+      (opt) => opt.value === booleanMode
+    );
+    focusBooleanOption(selectedIdx >= 0 ? selectedIdx : 0);
+  }
+  if (event.key === "Escape") {
+    closeBooleanDropdown();
+  }
+});
+
+booleanList.addEventListener("keydown", (event) => {
+  const focusedIdx = booleanOptions.findIndex((opt) =>
+    opt.el.classList.contains("focused")
+  );
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    focusBooleanOption(focusedIdx + 1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    focusBooleanOption(focusedIdx - 1);
+  } else if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    const idx =
+      focusedIdx >= 0
+        ? focusedIdx
+        : booleanOptions.findIndex((opt) => opt.value === booleanMode);
+    setBooleanMode(booleanOptions[Math.max(idx, 0)].value);
+  } else if (event.key === "Escape") {
+    closeBooleanDropdown();
+    booleanToggle.focus();
+  }
+});
+
+booleanOptions.forEach((opt) => {
+  opt.el.addEventListener("pointerdown", (event) => event.preventDefault());
+  opt.el.addEventListener("click", () => setBooleanMode(opt.value));
+});
+
+window.addEventListener("pointerdown", (event) => {
+  if (booleanOpen && !booleanDropdown.contains(event.target)) {
+    closeBooleanDropdown();
+  }
+});
+
 wireframeToggle.addEventListener("change", (event) => {
   wireframeEnabled = !event.target.checked;
   syncWireframeToggle();
@@ -1438,6 +1568,7 @@ updateBrushRadii();
 updateFaceGrids(getDensityValue());
 updateMeshStats(0);
 setActiveFace("bottom");
+setBooleanMode("intersect", false, false);
 syncWireframeToggle();
 syncProjectionsToggle();
 syncCubeToggle();
