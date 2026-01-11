@@ -77,7 +77,7 @@ const half = cubeSize / 2;
 const meshInset = 0.01;
 const planeGeo = new THREE.PlaneGeometry(cubeSize, cubeSize);
 const faceCanvasSize = 512;
-const paintColor = "rgba(72, 40, 240, 0.45)";
+const paintColor = "rgba(72, 40, 240, 0.72)";
 const labelEdgeOffset = 0.06;
 const labelNormalOffset = 0.06;
 const labelDefaultColor = "rgba(255,255,255,0.65)";
@@ -407,7 +407,7 @@ function createFace(
     emissive: new THREE.Color(0x171a22),
     emissiveIntensity: 0.6,
     transparent: true,
-    opacity: 0.98,
+    opacity: 0.74,
     roughness: 0.78,
     metalness: 0.08,
     side: THREE.DoubleSide
